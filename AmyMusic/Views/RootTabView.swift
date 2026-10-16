@@ -39,6 +39,7 @@ public enum AmyMobileTab: Int, CaseIterable, Identifiable {
 public struct RootTabView: View {
     @Bindable var player: AudioPlayerManager
     @State private var activeTab: AmyMobileTab = .wave
+    @State private var triggerSearchFocus: Bool = false
     @State private var isFullPlayerOpen: Bool = false
     @State private var isEqualizerOpen: Bool = false
     @State private var isQueueSheetOpen: Bool = false
@@ -71,6 +72,7 @@ public struct RootTabView: View {
             Tab(AmyMobileTab.wave.label, systemImage: AmyMobileTab.wave.systemIcon, value: AmyMobileTab.wave) {
                 HomeWaveView(
                     player: player,
+                    triggerSearchFocus: $triggerSearchFocus,
                     onOpenFullPlayer: {
                         withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
                             isFullPlayerOpen = true
@@ -96,12 +98,7 @@ public struct RootTabView: View {
             }
 
             Tab(AmyMobileTab.search.label, systemImage: AmyMobileTab.search.systemIcon, value: AmyMobileTab.search, role: .search) {
-                SearchView(
-                    player: player,
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenRelease: { rel in selectedRelease = rel },
-                    onOpenSettings: { isSettingsOpen = true }
-                )
+                Color.clear
             }
 
             Tab(AmyMobileTab.collection.label, systemImage: AmyMobileTab.collection.systemIcon, value: AmyMobileTab.collection) {
@@ -124,6 +121,14 @@ public struct RootTabView: View {
                 }
             )
         }
+        .onChange(of: activeTab) { _, newTab in
+            if newTab == .search {
+                activeTab = .wave
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    triggerSearchFocus = true
+                }
+            }
+        }
         .preferredColorScheme(.dark)
         .modifier(RootSheetsModifier(
             player: player,
@@ -145,9 +150,10 @@ public struct RootTabView: View {
 
             ZStack {
                 switch activeTab {
-                case .wave:
+                case .wave, .search:
                     HomeWaveView(
                         player: player,
+                        triggerSearchFocus: $triggerSearchFocus,
                         onOpenFullPlayer: {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
                                 isFullPlayerOpen = true
@@ -168,15 +174,6 @@ public struct RootTabView: View {
                     TrendsChartsView(
                         player: player,
                         onOpenArtist: { id in selectedArtistId = id },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
-
-                case .search:
-                    SearchView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
                         onOpenSettings: { isSettingsOpen = true }
                     )
                     .transition(.opacity)
@@ -204,7 +201,10 @@ public struct RootTabView: View {
 
                     PhoneFloatingNavDock(
                         activeTab: $activeTab,
-                        accentColor: themeAccent
+                        accentColor: themeAccent,
+                        onTriggerSearch: {
+                            triggerSearchFocus = true
+                        }
                     )
                 }
                 .padding(.horizontal, 12)
@@ -603,6 +603,7 @@ public struct PhoneLiquidGlassMiniPlayer: View {
 public struct PhoneFloatingNavDock: View {
     @Binding var activeTab: AmyMobileTab
     var accentColor: Color
+    var onTriggerSearch: (() -> Void)? = nil
 
     @State private var isHoldingDroplet: Bool = false
     @State private var dragX: CGFloat = 0
@@ -706,7 +707,14 @@ public struct PhoneFloatingNavDock: View {
                         let finalIndex = min(maxIdx, max(0, Int(floor(val.location.x / slotW))))
                         let finalTab = AmyMobileTab(rawValue: finalIndex) ?? activeTab
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.70)) {
-                            activeTab = finalTab
+                            if finalTab == .search {
+                                activeTab = .wave
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                    onTriggerSearch?()
+                                }
+                            } else {
+                                activeTab = finalTab
+                            }
                             isHoldingDroplet = false
                             dragOffset = 0
                             hoveredTab = nil

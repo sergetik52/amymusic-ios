@@ -5,11 +5,30 @@ import SwiftUI
 
 public struct HomeWaveView: View {
     @Bindable var player: AudioPlayerManager
+    var triggerSearchFocus: Binding<Bool>? = nil
     var onOpenFullPlayer: () -> Void
     var onOpenArtist: (String) -> Void
     var onOpenRelease: (ReleaseItem) -> Void
     var onOpenSettings: () -> Void
     var onNavigateCollection: () -> Void
+
+    public init(
+        player: AudioPlayerManager,
+        triggerSearchFocus: Binding<Bool>? = nil,
+        onOpenFullPlayer: @escaping () -> Void,
+        onOpenArtist: @escaping (String) -> Void,
+        onOpenRelease: @escaping (ReleaseItem) -> Void,
+        onOpenSettings: @escaping () -> Void,
+        onNavigateCollection: @escaping () -> Void
+    ) {
+        self.player = player
+        self.triggerSearchFocus = triggerSearchFocus
+        self.onOpenFullPlayer = onOpenFullPlayer
+        self.onOpenArtist = onOpenArtist
+        self.onOpenRelease = onOpenRelease
+        self.onOpenSettings = onOpenSettings
+        self.onNavigateCollection = onNavigateCollection
+    }
 
     @State private var isWaveSeedModalOpen: Bool = false
     @State private var isHistoryDrawerOpen: Bool = false
@@ -30,6 +49,7 @@ public struct HomeWaveView: View {
                         player: player,
                         heroTrack: currentOrLast,
                         palette: palette,
+                        triggerSearchFocus: triggerSearchFocus,
                         onConfigureSeeds: { isWaveSeedModalOpen = true },
                         onStartWave: {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -185,6 +205,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
     @Bindable var player: AudioPlayerManager
     var heroTrack: Track?
     var palette: TrackPalette
+    var triggerSearchFocus: Binding<Bool>? = nil
     var onConfigureSeeds: () -> Void
     var onStartWave: () -> Void
     var onOpenSettings: () -> Void
@@ -199,6 +220,10 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
     @State private var playlistResults: [ReleaseItem] = []
     @State private var isSearching: Bool = false
     @FocusState private var isSearchFocused: Bool
+
+    private let trendingQueries = [
+        "Kai Angel", "9mice", "Viperr", "OG Buda", "Phonk", "Toxis", "Big Baby Tape", "Shadowraze"
+    ]
 
     private var isSearchExpanded: Bool {
         isSearchFocused || !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -230,56 +255,76 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
         VStack(spacing: 0) {
             // Foreground Hero Structure: Search at top, Cover + Wave + Play at bottom
             VStack(spacing: 12) {
-                    // Top Embedded Search Slot
-                    HStack(spacing: 8) {
-                        HStack(spacing: 8) {
+                    // Top Embedded Liquid Glass Search Slot
+                    HStack(spacing: 10) {
+                        HStack(spacing: 10) {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.70))
 
-                            TextField("Что вы чувствуете или ищете?", text: $searchQuery)
+                            TextField("Трек, артист, альбом или жанр...", text: $searchQuery)
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(.white)
                                 .focused($isSearchFocused)
                                 .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .submitLabel(.search)
                                 .onSubmit {
                                     runEmbeddedSearch()
                                 }
 
                             if isSearching {
-                                ProgressView().tint(.white).scaleEffect(0.75)
-                            } else if !searchQuery.isEmpty || isSearchFocused {
+                                ProgressView().tint(.white).scaleEffect(0.8)
+                            } else if !searchQuery.isEmpty {
                                 Button {
                                     searchQuery = ""
                                     trackResults = []
                                     artistResults = []
                                     albumResults = []
                                     playlistResults = []
-                                    isSearchFocused = false
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.white.opacity(0.5))
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(.white.opacity(0.55))
                                 }
                             }
                         }
                         .padding(.horizontal, 14)
-                        .frame(height: 44)
-                        .appleLiquidGlassTopBar(tint: Color(hex: "#121212"), showBottomSeparator: false, cornerRadius: 22)
+                        .padding(.vertical, 11)
+                        .amyLiquidGlass(in: Capsule(), interactive: true)
 
-                        // Compact Profile / Settings Avatar Button
-                        Button(action: onOpenSettings) {
-                            ProfileAvatarView(
-                                avatarDataUrl: player.settings.avatarDataUrl,
-                                displayName: player.settings.displayName,
-                                size: 44,
-                                primaryHex: player.settings.themePreset.primaryHex,
-                                secondaryHex: player.settings.themePreset.secondaryHex
-                            )
+                        if isSearchExpanded {
+                            Button("Отмена") {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                                    isSearchFocused = false
+                                    searchQuery = ""
+                                    trackResults = []
+                                    artistResults = []
+                                    albumResults = []
+                                    playlistResults = []
+                                }
+                            }
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                        } else {
+                            // Compact Profile / Settings Avatar Button
+                            Button(action: onOpenSettings) {
+                                ProfileAvatarView(
+                                    avatarDataUrl: player.settings.avatarDataUrl,
+                                    displayName: player.settings.displayName,
+                                    size: 42,
+                                    primaryHex: player.settings.themePreset.primaryHex,
+                                    secondaryHex: player.settings.themePreset.secondaryHex
+                                )
+                            }
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                     }
                     .padding(.horizontal, 14)
                     .padding(.top, topSafeInset + 6)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isSearchExpanded)
 
                     // Search Filter Chips Lane when focused
                     if isSearchExpanded {
@@ -289,25 +334,62 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                     let active = selectedFilter == tab
                                     Button {
                                         UISelectionFeedbackGenerator().selectionChanged()
-                                        selectedFilter = tab
+                                        withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                                            selectedFilter = tab
+                                        }
                                     } label: {
                                         Text(tab.rawValue)
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundStyle(active ? .black : .white.opacity(0.85))
+                                            .font(.system(size: 13, weight: active ? .bold : .medium))
+                                            .foregroundStyle(active ? .black : .white.opacity(0.78))
                                             .padding(.horizontal, 14)
                                             .padding(.vertical, 7)
+                                            .background {
+                                                if active {
+                                                    Capsule().fill(.white)
+                                                } else {
+                                                    Capsule().fill(.white.opacity(0.08))
+                                                }
+                                            }
                                     }
-                                    .buttonStyle(
-                                        AppleLiquidGlassButtonStyle(
-                                            shape: Capsule(),
-                                            tintColor: active ? .white : Color.black.opacity(0.65),
-                                            isFilledAccent: active
-                                        )
-                                    )
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 14)
+                            .padding(.vertical, 4)
                         }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    // Trending Queries when search query is empty
+                    if isSearchExpanded && searchQuery.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Популярные запросы")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.65))
+                                .padding(.horizontal, 14)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(trendingQueries, id: \.self) { query in
+                                        Button {
+                                            searchQuery = query
+                                            runEmbeddedSearch()
+                                        } label: {
+                                            Text(query)
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.white.opacity(0.08), in: Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 14)
+                            }
+                        }
+                        .padding(.top, 2)
+                        .transition(.opacity)
                     }
 
                     Spacer(minLength: 4)
@@ -490,16 +572,30 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                     }
                     .padding(.vertical, 12)
                 }
-                .frame(maxHeight: 390) // ~52vh on iPhone
-                .background(Color(hex: "#0D0D0F"))
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .frame(maxHeight: 440)
+                .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous), interactive: true)
                 .padding(.horizontal, 12)
                 .padding(.top, 6)
             }
         }
         .onChange(of: searchQuery) { _, newValue in
-            guard newValue.trimmingCharacters(in: .whitespaces).count >= 2 else { return }
-            runEmbeddedSearch()
+            let q = newValue.trimmingCharacters(in: .whitespaces)
+            if q.count >= 2 {
+                runEmbeddedSearch()
+            } else if q.isEmpty {
+                trackResults = []
+                artistResults = []
+                albumResults = []
+                playlistResults = []
+            }
+        }
+        .onChange(of: triggerSearchFocus?.wrappedValue) { _, shouldFocus in
+            if shouldFocus == true {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                    isSearchFocused = true
+                }
+                triggerSearchFocus?.wrappedValue = false
+            }
         }
     }
 
