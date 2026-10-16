@@ -97,7 +97,7 @@ public struct HomeWaveView: View {
                                         }
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 7)
-                                        .amyLiquidGlass(in: Capsule(), tint: Color(hex: palette.line), tintOpacity: 0.18)
+                                        .amyLiquidGlass(in: Capsule(), tint: nil, tintOpacity: 0)
                                     }
                                 }
                                 .padding(.horizontal, 16)
@@ -449,7 +449,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 5)
                                 }
-                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: Color(hex: palette.line), tintOpacity: 0.35))
+                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: nil))
                             }
                         }
                         .frame(height: coverDimension, alignment: .bottomLeading)

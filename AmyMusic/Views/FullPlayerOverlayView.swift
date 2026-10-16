@@ -15,6 +15,7 @@ public struct FullPlayerOverlayView: View {
     @Bindable var player: AudioPlayerManager
     @Binding var isPresented: Bool
     var onOpenArtist: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     @State private var stageMode: FullPlayerCenterStageMode = .song
     @State private var isLyricsConfigOpen: Bool = false
@@ -80,13 +81,16 @@ public struct FullPlayerOverlayView: View {
                         Button {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             isPresented = false
+                            dismiss()
                         } label: {
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 15, weight: .bold))
+                                .font(.system(size: 16, weight: .bold))
                                 .foregroundStyle(.white)
-                                .frame(width: 36, height: 36)
+                                .frame(width: 42, height: 42)
+                                .contentShape(Circle())
                         }
                         .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
+                        .zIndex(50)
 
                         Spacer(minLength: 4)
 
@@ -403,23 +407,6 @@ public struct FullPlayerOverlayView: View {
                     .padding(.bottom, max(safeBottom, 16) + 4)
                 }
                 .frame(width: screenWidth)
-                .offset(y: max(0, dragDismissOffset))
-                .gesture(
-                    DragGesture()
-                        .onChanged { val in
-                            if val.translation.height > 0 {
-                                dragDismissOffset = val.translation.height
-                            }
-                        }
-                        .onEnded { val in
-                            if val.translation.height > 90 {
-                                isPresented = false
-                            }
-                            withAnimation(.spring(duration: 0.28)) {
-                                dragDismissOffset = 0
-                            }
-                        }
-                )
             }
         }
         .ignoresSafeArea()
@@ -922,17 +909,17 @@ public struct LyricsSettingsMenuSheet: View {
 
                         // 5. Reload Button
                         Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             Task { await player.loadLyricsForCurrentTrack(forceRefresh: true) }
                             dismiss()
                         } label: {
                             Label("Обновить текст", systemImage: "arrow.clockwise")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.black)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
-                                .amyLiquidGlass(in: Capsule(), tint: .white, tintOpacity: 0.18)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true))
                     }
                     .padding(20)
                     .padding(.bottom, 36)

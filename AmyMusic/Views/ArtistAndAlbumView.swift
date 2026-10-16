@@ -28,29 +28,33 @@ public struct ArtistDetailPageView: View {
 
     public var body: some View {
         ZStack(alignment: .top) {
-            // Full-screen ambient backdrop (eliminates black cut-off at bottom and through liquid glass)
+            // Full-screen ambient backdrop (strictly bounded so it never expands or crashes layout)
             ZStack {
                 Color.amyBackground
 
                 if let profile {
-                    AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .blur(radius: 54)
-                    .opacity(0.32)
+                    GeometryReader { geo in
+                        AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
+                            img.resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                        } placeholder: {
+                            Color.clear
+                        }
+                        .blur(radius: 54)
+                        .opacity(0.32)
 
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.25),
-                            Color.amyBackground.opacity(0.65),
-                            Color.amyBackground.opacity(0.90)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.25),
+                                Color.amyBackground.opacity(0.65),
+                                Color.amyBackground.opacity(0.90)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
                 }
             }
             .ignoresSafeArea()
@@ -168,21 +172,27 @@ public struct ArtistDetailPageView: View {
                             .padding(.bottom, 12)
                             .frame(maxWidth: .infinity)
                             .background {
-                                ZStack {
-                                    AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
-                                        img.resizable().scaledToFill()
-                                    } placeholder: {
-                                        Color.white.opacity(0.12)
-                                    }
-                                    .blur(radius: 36)
-                                    .opacity(0.45)
+                                GeometryReader { geo in
+                                    ZStack {
+                                        AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
+                                            img.resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: geo.size.width, height: geo.size.height)
+                                                .clipped()
+                                        } placeholder: {
+                                            Color.white.opacity(0.12)
+                                        }
+                                        .blur(radius: 36)
+                                        .opacity(0.45)
 
-                                    LinearGradient(
-                                        colors: [.clear, Color.amyBackground.opacity(0.75), Color.amyBackground],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
+                                        LinearGradient(
+                                            colors: [.clear, Color.amyBackground.opacity(0.75), Color.amyBackground],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    }
                                 }
+                                .clipped()
                                 .ignoresSafeArea(edges: .top)
                             }
 
@@ -361,6 +371,7 @@ public struct ArtistDetailPageView: View {
                         Spacer(minLength: 36)
                     }
                 }
+                .scrollClipDisabled()
             } else {
                 VStack {
                     Spacer()
@@ -369,10 +380,8 @@ public struct ArtistDetailPageView: View {
                 }
             }
 
-            // Top Bar: Back Button in top-right corner, prominent and larger
+            // Top Bar: Back Button in top-left corner, prominent and larger
             HStack {
-                Spacer()
-
                 Button {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     onBack()
@@ -389,6 +398,8 @@ public struct ArtistDetailPageView: View {
                     .contentShape(Capsule())
                 }
                 .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+
+                Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)

@@ -64,6 +64,8 @@ public final class AudioPlayerManager {
     private var activeEngineIdx: Int = 0
     private var isCrossfading: Bool = false
     private var crossfadeTask: Task<Void, Never>?
+    private var trackLoadTask: Task<Void, Never>?
+    private var didTriggerCrossfadeForCurrentTrack: Bool = false
     private var timeObserverTokens: [Any?] = [nil, nil]
     private var energyTimer: Timer?
     private var listenAccumulator: Double = 0
@@ -172,9 +174,11 @@ public final class AudioPlayerManager {
 
                     // Check crossfade trigger (1-12s before end)
                     if self.settings.crossfadeEnabled,
+                       !self.didTriggerCrossfadeForCurrentTrack,
                        !self.isCrossfading,
                        self.duration > 20,
                        secs >= self.duration - self.settings.crossfadeSeconds {
+                        self.didTriggerCrossfadeForCurrentTrack = true
                         self.triggerCrossfadeToNext()
                     }
                 }
@@ -434,8 +438,12 @@ public final class AudioPlayerManager {
     }
 
     private func loadAndStartTrack(_ track: Track, useCrossfade: Bool) {
-        crossfadeTask?.cancel()
-        isCrossfading = false
+        trackLoadTask?.cancel()
+        if !useCrossfade {
+            crossfadeTask?.cancel()
+            isCrossfading = false
+            didTriggerCrossfadeForCurrentTrack = false
+        }
         isLoading = true
         currentTrack = track
         currentTime = 0
@@ -466,15 +474,17 @@ public final class AudioPlayerManager {
             }
         }
 
-        Task {
+        trackLoadTask = Task {
             guard let streamUrl = await resolvePlayableUrl(for: track) else {
+                guard !Task.isCancelled else { return }
                 self.isLoading = false
                 // Automatically skip unresolvable track
-                if self.queue.count > 1 {
+                if self.queue.count > 1 && !useCrossfade {
                     self.next()
                 }
                 return
             }
+            guard !Task.isCancelled else { return }
 
             let asset = AVURLAsset(url: streamUrl)
             let item = AVPlayerItem(asset: asset)
@@ -546,6 +556,7 @@ public final class AudioPlayerManager {
     }
 
     private func handleTrackEnded() {
+        guard !isCrossfading else { return }
         if repeatMode == .one {
             seek(to: 0)
             play()
