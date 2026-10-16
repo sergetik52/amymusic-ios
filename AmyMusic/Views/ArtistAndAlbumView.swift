@@ -33,17 +33,17 @@ public struct ArtistDetailPageView: View {
                 Color.amyBackground
 
                 if let profile {
-                    ZStack {
+                    GeometryReader { geo in
                         AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
                             img.resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .frame(width: geo.size.width, height: geo.size.height)
                                 .clipped()
                         } placeholder: {
                             Color.clear
                         }
-                        .blur(radius: 60)
-                        .opacity(0.35)
+                        .blur(radius: 54)
+                        .opacity(0.32)
 
                         LinearGradient(
                             colors: [
@@ -54,9 +54,8 @@ public struct ArtistDetailPageView: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
+                        .frame(width: geo.size.width, height: geo.size.height)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
                 }
             }
             .ignoresSafeArea()
@@ -72,8 +71,8 @@ public struct ArtistDetailPageView: View {
             } else if let profile {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
-                        // Spacing so avatar starts smoothly below the floating back button and top safe area
-                        Spacer().frame(height: topSafeInset + 44)
+                        // Compact top spacing so avatar starts right under top bar without huge empty space
+                        Spacer().frame(height: 8)
                             // Artist Hero Banner (Adaptive across iPhone 11 to 17 Pro Max)
                             VStack(spacing: 12) {
                                 let isCompact = UIScreen.main.bounds.width < 380
@@ -173,30 +172,6 @@ public struct ArtistDetailPageView: View {
                             }
                             .padding(.bottom, 12)
                             .frame(maxWidth: .infinity)
-                            .background {
-                                GeometryReader { geo in
-                                    ZStack {
-                                        AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
-                                            img.resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: geo.size.width, height: geo.size.height)
-                                                .clipped()
-                                        } placeholder: {
-                                            Color.white.opacity(0.12)
-                                        }
-                                        .blur(radius: 36)
-                                        .opacity(0.45)
-
-                                        LinearGradient(
-                                            colors: [.clear, Color.amyBackground.opacity(0.75), Color.amyBackground],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    }
-                                }
-                                .clipped()
-                                .ignoresSafeArea(edges: .top)
-                            }
 
                             // "Новый релиз" (The single TRULY latest release: single or album)
                             if let latest = profile.latestRelease ?? profile.latestReleases.first {
@@ -404,10 +379,9 @@ public struct ArtistDetailPageView: View {
                 Spacer()
             }
             .padding(.horizontal, 16)
-            .padding(.top, topSafeInset + 6)
+            .padding(.top, 4)
             .zIndex(100)
         }
-        .ignoresSafeArea(edges: .top)
         .task {
             isLoading = true
             profile = await SoundCloudService.shared.fetchArtistProfile(artistId: artistId)

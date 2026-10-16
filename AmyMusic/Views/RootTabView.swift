@@ -96,7 +96,6 @@ public struct RootTabView: View {
                 }
             }
         )
-        .ignoresSafeArea(edges: .top)
         .transition(.opacity)
     }
 
@@ -269,7 +268,6 @@ public struct RootTabView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(edges: selectedArtistId != nil ? .top : [])
             .animation(.easeInOut(duration: 0.22), value: activeTab)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 8) {
