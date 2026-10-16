@@ -192,44 +192,84 @@ public struct AppleLiquidGlassButtonStyle<S: Shape>: ButtonStyle {
     public var shape: S
     public var tintColor: Color?
     public var tintOpacity: Double
+    public var isFilledAccent: Bool
+    public var showStroke: Bool
+    public var scaleOnPress: CGFloat
 
-    public init(shape: S, tintColor: Color? = nil, tintOpacity: Double = 0.20) {
+    public init(
+        shape: S,
+        tintColor: Color? = nil,
+        tintOpacity: Double = 0.20,
+        isFilledAccent: Bool = false,
+        showStroke: Bool = true,
+        scaleOnPress: CGFloat = 0.93
+    ) {
         self.shape = shape
         self.tintColor = tintColor
         self.tintOpacity = tintOpacity
+        self.isFilledAccent = isFilledAccent
+        self.showStroke = showStroke
+        self.scaleOnPress = scaleOnPress
     }
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background {
-                shape
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        if let tintColor {
-                            shape.fill(tintColor.opacity(tintOpacity))
+                if isFilledAccent {
+                    shape
+                        .fill(tintColor ?? .white)
+                        .overlay {
+                            if configuration.isPressed {
+                                shape.fill(Color.black.opacity(0.18))
+                            }
                         }
-                    }
-                    .overlay {
-                        if configuration.isPressed {
-                            shape.fill(Color.white.opacity(0.14))
+                        .overlay {
+                            if showStroke {
+                                shape.stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            .white.opacity(0.75),
+                                            .white.opacity(0.20)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 0.85
+                                )
+                            }
                         }
-                    }
-                    .overlay {
-                        shape.stroke(
-                            LinearGradient(
-                                colors: [
-                                    .white.opacity(0.40),
-                                    .white.opacity(0.08),
-                                    .white.opacity(0.20)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.8
-                        )
-                    }
+                } else {
+                    shape
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            if let tintColor {
+                                shape.fill(tintColor.opacity(tintOpacity))
+                            }
+                        }
+                        .overlay {
+                            if configuration.isPressed {
+                                shape.fill(Color.white.opacity(0.16))
+                            }
+                        }
+                        .overlay {
+                            if showStroke {
+                                shape.stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            .white.opacity(0.40),
+                                            .white.opacity(0.08),
+                                            .white.opacity(0.20)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 0.8
+                                )
+                            }
+                        }
+                }
             }
-            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
+            .scaleEffect(configuration.isPressed ? scaleOnPress : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.72), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isPressed in
                 if isPressed {
@@ -243,14 +283,28 @@ public extension ButtonStyle where Self == AppleLiquidGlassButtonStyle<Capsule> 
     static var appleLiquidGlass: AppleLiquidGlassButtonStyle<Capsule> {
         AppleLiquidGlassButtonStyle(shape: Capsule())
     }
-    static func appleLiquidGlass(tint: Color? = nil) -> AppleLiquidGlassButtonStyle<Capsule> {
-        AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: tint)
+    static func appleLiquidGlass(tint: Color? = nil, isFilledAccent: Bool = false) -> AppleLiquidGlassButtonStyle<Capsule> {
+        AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: tint, isFilledAccent: isFilledAccent)
+    }
+}
+
+public extension ButtonStyle where Self == AppleLiquidGlassButtonStyle<Circle> {
+    static var appleLiquidGlassCircle: AppleLiquidGlassButtonStyle<Circle> {
+        AppleLiquidGlassButtonStyle(shape: Circle())
+    }
+    static func appleLiquidGlassCircle(tint: Color? = nil, isFilledAccent: Bool = false) -> AppleLiquidGlassButtonStyle<Circle> {
+        AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: tint, isFilledAccent: isFilledAccent)
     }
 }
 
 public extension ButtonStyle {
-    static func appleLiquidGlass<S: Shape>(_ shape: S, tint: Color? = nil) -> AppleLiquidGlassButtonStyle<S> {
-        AppleLiquidGlassButtonStyle(shape: shape, tintColor: tint)
+    static func appleLiquidGlass<S: Shape>(
+        _ shape: S,
+        tint: Color? = nil,
+        isFilledAccent: Bool = false,
+        showStroke: Bool = true
+    ) -> AppleLiquidGlassButtonStyle<S> {
+        AppleLiquidGlassButtonStyle(shape: shape, tintColor: tint, isFilledAccent: isFilledAccent, showStroke: showStroke)
     }
 }
 

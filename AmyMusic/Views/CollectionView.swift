@@ -43,16 +43,15 @@ public struct CollectionView: View {
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "heart.fill")
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color(hex: "#FF3B30"))
                                 Text("Мне нравится (\(player.likedTracks.count))")
                                     .font(.system(size: 14, weight: .bold))
                                     .foregroundStyle(.white)
                             }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 11)
-                            .amyLiquidGlass(in: Capsule(), tint: .white, tintOpacity: 0.18, interactive: true)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: Color(hex: "#FF3B30").opacity(0.25)))
                         .padding(.top, 4)
                     }
                     .frame(maxWidth: .infinity)
@@ -81,6 +80,9 @@ public struct CollectionView: View {
                                 }
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                             }
                             .padding(.horizontal, 16)
 
@@ -296,9 +298,8 @@ public struct CreateOrImportPlaylistSheetView: View {
                                     .foregroundStyle(.black)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 14)
-                                    .background(.white, in: Capsule())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true))
                         }
                         .padding(18)
                         .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -352,10 +353,9 @@ public struct CreateOrImportPlaylistSheetView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
-                                .background(.white, in: Capsule())
                             }
                             .disabled(isImporting || yandexUrlInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true))
                         }
                         .padding(18)
                         .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))

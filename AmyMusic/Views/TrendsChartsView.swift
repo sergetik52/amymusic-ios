@@ -41,10 +41,8 @@ public struct TrendsChartsView: View {
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 28)
                                 .padding(.vertical, 13)
-                                .background(.white, in: Capsule())
-                                .shadow(color: .white.opacity(0.2), radius: 16)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true, scaleOnPress: 0.94))
 
                             Button {
                                 refreshCharts()
@@ -59,9 +57,8 @@ public struct TrendsChartsView: View {
                                     }
                                 }
                                 .frame(width: 44, height: 44)
-                                .amyLiquidGlass(in: Circle(), interactive: true)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                         }
                         .padding(.top, 6)
                     }

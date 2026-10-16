@@ -134,9 +134,8 @@ public struct HomeWaveView: View {
                                         .foregroundStyle(.white.opacity(0.85))
                                         .rotationEffect(.degrees(refreshRotation))
                                         .frame(width: 34, height: 34)
-                                        .amyLiquidGlass(in: Circle(), interactive: true)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                                 .disabled(isRefreshingWave)
                             }
                             .padding(.horizontal, 16)
@@ -297,9 +296,14 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                             .foregroundStyle(active ? .black : .white.opacity(0.85))
                                             .padding(.horizontal, 14)
                                             .padding(.vertical, 7)
-                                            .background(active ? .white : .black.opacity(0.65), in: Capsule())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(
+                                        AppleLiquidGlassButtonStyle(
+                                            shape: Capsule(),
+                                            tintColor: active ? .white : Color.black.opacity(0.65),
+                                            isFilledAccent: active
+                                        )
+                                    )
                                 }
                             }
                             .padding(.horizontal, 14)
@@ -362,9 +366,8 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 5)
-                                        .amyLiquidGlass(in: Capsule(), tint: Color(hex: palette.line), tintOpacity: 0.35, interactive: true)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: Color(hex: palette.line), tintOpacity: 0.35))
                             }
                         }
                         .frame(height: coverDimension, alignment: .bottomLeading)
@@ -375,11 +378,6 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                         // 3. Main Play/Pause Button
                         Button(action: onStartWave) {
                             ZStack {
-                                Circle()
-                                    .fill(.white)
-                                    .frame(width: playButtonSize, height: playButtonSize)
-                                    .shadow(color: .white.opacity(0.22), radius: 18)
-
                                 if player.isLoading {
                                     ProgressView()
                                         .tint(Color(hex: "#0B0B0D"))
@@ -391,8 +389,9 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                         .offset(x: player.isPlaying ? 0 : 2)
                                 }
                             }
+                            .frame(width: playButtonSize, height: playButtonSize)
                         }
-                        .buttonStyle(ScalePressButtonStyle(scale: 0.92))
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: .white, isFilledAccent: true, scaleOnPress: 0.92))
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
@@ -756,13 +755,18 @@ public struct WaveSeedModalView: View {
             }
             .navigationTitle("Настройка волны")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") {
                         Task { await player.loadInitialRecommendations() }
                         dismiss()
                     }
-                    .fontWeight(.bold)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
             }
             .onChange(of: query) { _, newValue in
@@ -821,6 +825,7 @@ public struct PlayHistorySheetView: View {
             }
             .navigationTitle("История прослушивания")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if !player.playHistory.isEmpty {
@@ -828,7 +833,11 @@ public struct PlayHistorySheetView: View {
                             player.playHistory.removeAll()
                             player.persistState()
                         }
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.red)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .red.opacity(0.25)))
                     }
                 }
             }

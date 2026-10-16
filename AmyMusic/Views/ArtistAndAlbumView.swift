@@ -101,9 +101,8 @@ public struct ArtistDetailSheetView: View {
                                         .foregroundStyle(.black)
                                         .padding(.horizontal, isCompact ? 16 : 22)
                                         .padding(.vertical, 11)
-                                        .background(.white, in: Capsule())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true))
 
                                     let artistRef = ArtistRef(id: profile.id, name: profile.name, avatarUrl: profile.avatarUrl)
                                     let subscribed = player.isSubscribed(to: artistRef)
@@ -115,14 +114,8 @@ public struct ArtistDetailSheetView: View {
                                             .foregroundStyle(.white)
                                             .padding(.horizontal, isCompact ? 14 : 18)
                                             .padding(.vertical, 11)
-                                            .amyLiquidGlass(
-                                                in: Capsule(),
-                                                tint: subscribed ? Color.white.opacity(0.25) : nil,
-                                                tintOpacity: subscribed ? 0.45 : 0.15,
-                                                interactive: true
-                                            )
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: subscribed ? Color.white.opacity(0.25) : nil, tintOpacity: subscribed ? 0.45 : 0.15))
                                 }
 
                                 // Genre #tag chips
@@ -489,9 +482,8 @@ public struct AlbumOrPlaylistSheetView: View {
                                         .foregroundStyle(.black)
                                         .padding(.horizontal, 26)
                                         .padding(.vertical, 12)
-                                        .background(.white, in: Capsule())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true))
 
                                     Button {
                                         var shuffled = activeRelease.tracks
@@ -504,9 +496,8 @@ public struct AlbumOrPlaylistSheetView: View {
                                             .font(.system(size: 16, weight: .bold))
                                             .foregroundStyle(.white)
                                             .frame(width: 44, height: 44)
-                                            .amyLiquidGlass(in: Circle(), interactive: true)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                                     if !isLikedSpecialPlaylist {
                                         let isSaved = player.savedReleases.contains(where: { $0.id == activeRelease.id })
@@ -515,11 +506,10 @@ public struct AlbumOrPlaylistSheetView: View {
                                         } label: {
                                             Image(systemName: isSaved ? "heart.fill" : "heart")
                                                 .font(.system(size: 16, weight: .bold))
-                                                .foregroundStyle(isSaved ? .white : .white.opacity(0.6))
+                                                .foregroundStyle(isSaved ? Color(hex: "#FF3B30") : .white)
                                                 .frame(width: 44, height: 44)
-                                                .amyLiquidGlass(in: Circle(), interactive: true)
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: isSaved ? Color(hex: "#FF3B30").opacity(0.30) : nil))
                                     }
                                 }
                             }
@@ -669,9 +659,8 @@ public struct AllArtistTracksSheetView: View {
                             .foregroundStyle(.black)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 9)
-                            .background(.white, in: Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .white, isFilledAccent: true))
 
                         Button {
                             var shuffled = filteredTracks
@@ -684,9 +673,8 @@ public struct AllArtistTracksSheetView: View {
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 38, height: 38)
-                                .amyLiquidGlass(in: Circle(), interactive: true)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                         Spacer()
                     }

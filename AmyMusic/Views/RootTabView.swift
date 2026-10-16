@@ -242,21 +242,22 @@ public struct PhoneLiquidGlassMiniPlayer: View {
             }
 
             if player.settings.miniPlayerStyle == .classic {
+                let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
                 Button(action: onToggleKaraoke) {
                     Image(systemName: "quote.bubble.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
                         .frame(width: 32, height: 32)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                 Button(action: onOpenEqualizer) {
                     Image(systemName: "slider.vertical.3")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(player.settings.equalizerEnabled ? .white : .white.opacity(0.75))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(player.settings.equalizerEnabled ? .white : .white.opacity(0.85))
                         .frame(width: 32, height: 32)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: player.settings.equalizerEnabled ? themeAccent : nil))
             }
 
             // Кнопка Лайка (слева от кнопки плей/стоп)
@@ -266,12 +267,11 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                     player.toggleLike(track)
                 } label: {
                     Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(isLiked ? .white : .white.opacity(0.78))
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(isLiked ? Color(hex: "#FF3B30") : .white.opacity(0.82))
                         .frame(width: 38, height: 38)
-                        .contentShape(Circle())
                 }
-                .buttonStyle(ScalePressButtonStyle(scale: 0.88))
+                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: isLiked ? Color(hex: "#FF3B30").opacity(0.30) : nil))
             }
 
             // .mobile-mini-player__play (46x46pt white circle, 18x18pt black icon)
@@ -283,10 +283,6 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                 }
             } label: {
                 ZStack {
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 46, height: 46)
-
                     if player.isLoading {
                         ProgressView()
                             .tint(Color(hex: "#0B0B0D"))
@@ -298,8 +294,9 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                             .offset(x: player.isPlaying ? 0 : 1.5)
                     }
                 }
+                .frame(width: 46, height: 46)
             }
-            .buttonStyle(ScalePressButtonStyle(scale: 0.92))
+            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: .white, isFilledAccent: true, scaleOnPress: 0.92))
         }
         .padding(.leading, 7)
         .padding(.trailing, 9)
@@ -403,16 +400,30 @@ public struct PhoneFloatingNavDock: View {
             let dropletH = isHoldingDroplet ? totalH + 8 : totalH - 12
 
             ZStack {
-                // Background Liquid Glass Droplet ("Капля") - однотонная чистая прозрачная капсула
+                // Background Liquid Glass Droplet ("Капля") - нативное ультратонкое стекло с зеркальной кромкой
                 ZStack {
                     Capsule()
-                        .fill(Color.white.opacity(isHoldingDroplet ? 0.18 : 0.12))
-                        .frame(width: dropletW, height: dropletH)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            Capsule().fill(Color.white.opacity(isHoldingDroplet ? 0.22 : 0.14))
+                        }
 
                     Capsule()
-                        .strokeBorder(Color.white.opacity(isHoldingDroplet ? 0.22 : 0.12), lineWidth: 0.8)
-                        .frame(width: dropletW, height: dropletH)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(isHoldingDroplet ? 0.50 : 0.32),
+                                    Color.white.opacity(isHoldingDroplet ? 0.14 : 0.08),
+                                    Color.white.opacity(isHoldingDroplet ? 0.28 : 0.16)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.85
+                        )
                 }
+                .frame(width: dropletW, height: dropletH)
+                .shadow(color: .white.opacity(isHoldingDroplet ? 0.16 : 0.05), radius: 8, y: 2)
                 .position(x: dropletCenterX, y: totalH / 2)
                 .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.68), value: dropletCenterX)
                 .animation(.spring(response: 0.30, dampingFraction: 0.70), value: isHoldingDroplet)
@@ -475,19 +486,22 @@ public struct PhoneFloatingNavDock: View {
         .frame(height: 58)
         .background {
             Capsule()
-                .fill(Color(hex: "#141418").opacity(0.88))
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule().fill(Color(hex: "#121216").opacity(0.55))
+                }
         }
         .overlay {
             Capsule()
                 .strokeBorder(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.35),
-                            Color.white.opacity(0.10),
-                            Color.clear
+                            Color.white.opacity(0.42),
+                            Color.white.opacity(0.12),
+                            Color.white.opacity(0.24)
                         ],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     ),
                     lineWidth: 0.85
                 )

@@ -325,10 +325,11 @@ public struct FullPlayerOverlayView: View {
                                 if let track { player.dislikeTrack(track) }
                             } label: {
                                 Image(systemName: "hand.thumbsdown.fill")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.6))
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.65))
+                                    .frame(width: 44, height: 44)
                             }
-                            .frame(width: 44, height: 44)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                             Spacer()
 
@@ -336,10 +337,11 @@ public struct FullPlayerOverlayView: View {
                                 player.previous()
                             } label: {
                                 Image(systemName: "backward.fill")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.system(size: 22, weight: .bold))
                                     .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
                             }
-                            .frame(width: 46, height: 46)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                             Spacer()
 
@@ -347,15 +349,6 @@ public struct FullPlayerOverlayView: View {
                                 player.togglePlay()
                             } label: {
                                 ZStack {
-                                    Circle()
-                                        .fill(Color(hex: player.settings.themePreset.primaryHex))
-                                        .frame(width: playBtnSize, height: playBtnSize)
-                                        .shadow(
-                                            color: Color(hex: player.settings.themePreset.primaryHex).opacity(0.55),
-                                            radius: 20,
-                                            y: 6
-                                        )
-
                                     if player.isLoading {
                                         ProgressView().tint(.black)
                                     } else {
@@ -365,8 +358,16 @@ public struct FullPlayerOverlayView: View {
                                             .offset(x: player.isPlaying ? 0 : 2)
                                     }
                                 }
+                                .frame(width: playBtnSize, height: playBtnSize)
                             }
-                            .frame(width: playBtnSize, height: playBtnSize)
+                            .buttonStyle(
+                                AppleLiquidGlassButtonStyle(
+                                    shape: Circle(),
+                                    tintColor: Color(hex: player.settings.themePreset.primaryHex),
+                                    isFilledAccent: true,
+                                    scaleOnPress: 0.92
+                                )
+                            )
 
                             Spacer()
 
@@ -374,10 +375,11 @@ public struct FullPlayerOverlayView: View {
                                 player.next()
                             } label: {
                                 Image(systemName: "forward.fill")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.system(size: 22, weight: .bold))
                                     .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
                             }
-                            .frame(width: 46, height: 46)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                             Spacer()
 
@@ -386,10 +388,11 @@ public struct FullPlayerOverlayView: View {
                             } label: {
                                 let liked = player.isLiked(track)
                                 Image(systemName: liked ? "heart.fill" : "heart")
-                                    .font(.system(size: 21, weight: .bold))
-                                    .foregroundStyle(liked ? .white : .white.opacity(0.65))
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(liked ? Color(hex: "#FF3B30") : .white.opacity(0.70))
+                                    .frame(width: 44, height: 44)
                             }
-                            .frame(width: 44, height: 44)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: player.isLiked(track) ? Color(hex: "#FF3B30").opacity(0.30) : nil))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 2)
@@ -400,15 +403,18 @@ public struct FullPlayerOverlayView: View {
                                 player.cycleRepeatMode()
                             } label: {
                                 Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 15, weight: .bold))
                                     .foregroundStyle(player.repeatMode != .off ? .white : .white.opacity(0.55))
+                                    .frame(width: 42, height: 42)
                             }
-                            .frame(width: 44, height: 44)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: player.repeatMode != .off ? Color(hex: player.settings.themePreset.primaryHex).opacity(0.35) : nil))
 
                             Spacer()
 
                             AirPlayRoutePickerButton()
-                                .frame(width: 44, height: 44)
+                                .frame(width: 22, height: 22)
+                                .frame(width: 42, height: 42)
+                                .amyLiquidGlass(in: Circle(), interactive: true)
 
                             Spacer()
 
@@ -416,10 +422,11 @@ public struct FullPlayerOverlayView: View {
                                 isQueueOpen = true
                             } label: {
                                 Image(systemName: "music.note.list")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.65))
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.70))
+                                    .frame(width: 42, height: 42)
                             }
-                            .frame(width: 44, height: 44)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                             Spacer()
 
@@ -427,10 +434,11 @@ public struct FullPlayerOverlayView: View {
                                 player.toggleShuffle()
                             } label: {
                                 Image(systemName: "shuffle")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 15, weight: .bold))
                                     .foregroundStyle(player.isShuffleEnabled ? .white : .white.opacity(0.55))
+                                    .frame(width: 42, height: 42)
                             }
-                            .frame(width: 44, height: 44)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: player.isShuffleEnabled ? Color(hex: player.settings.themePreset.primaryHex).opacity(0.35) : nil))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 8)

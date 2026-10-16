@@ -44,11 +44,11 @@ public struct MiniKaraokeFloatingOverlay: View {
                     onExpandFullPlayer()
                 } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.85))
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
 
                 Button {
                     withAnimation(.spring(duration: 0.3)) {
@@ -56,11 +56,11 @@ public struct MiniKaraokeFloatingOverlay: View {
                     }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.85))
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
             }
 
             Divider().overlay(.white.opacity(0.12))
