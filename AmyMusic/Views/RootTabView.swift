@@ -401,18 +401,11 @@ public struct NativeAppleLiquidGlassAccessory: View {
                 scaleOnPress: 0.92
             ))
         }
-        .padding(.leading, isInline ? 8 : 10)
-        .padding(.trailing, isInline ? 8 : 10)
-        .padding(.vertical, 3)
+        .padding(.leading, isInline ? 6 : 10)
+        .padding(.trailing, isInline ? 6 : 10)
+        .padding(.vertical, 2)
         .frame(height: height)
-        .amyLiquidGlass(
-            in: Capsule(),
-            tint: nil,
-            tintOpacity: 0,
-            interactive: true
-        )
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(isInline ? 0.22 : 0.40), radius: isInline ? 8 : 14, y: isInline ? 3 : 6)
+        .contentShape(Capsule())
         .highPriorityGesture(
             DragGesture(minimumDistance: 10)
                 .onChanged { value in
