@@ -4,9 +4,11 @@ import AVKit
 // MARK: - Full Player Overlay, Synced Lyrics Engine, Lyrics Context Menu, Queue Sheet & 10-Band Equalizer
 // Port of src/components/FullPlayerOverlay.jsx, src/components/LyricsContextMenu.jsx & src/components/EqualizerModal.jsx
 
-public enum FullPlayerCenterStageMode: String, CaseIterable {
+public enum FullPlayerCenterStageMode: String, CaseIterable, Identifiable {
     case song = "Песня"
     case lyrics = "Текст"
+
+    public var id: String { rawValue }
 }
 
 public struct FullPlayerOverlayView: View {
@@ -89,13 +91,13 @@ public struct FullPlayerOverlayView: View {
                         Spacer(minLength: 4)
 
                         // 2. Center Stage Switcher ("Песня" | "Текст")
-                        LiquidGlassSegmentedPicker(
-                            selection: $stageMode,
-                            items: FullPlayerCenterStageMode.allCases,
-                            accentColor: .white,
-                            label: \.rawValue
-                        )
-                        .frame(width: 156, height: 34)
+                        Picker("Режим плеера", selection: $stageMode) {
+                            ForEach(FullPlayerCenterStageMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 164)
 
                         Spacer(minLength: 4)
 
@@ -246,17 +248,22 @@ public struct FullPlayerOverlayView: View {
                             }
                         }
 
-                        // Sleek Liquid Scrubber Bar + Timestamps
-                        VStack(spacing: 4) {
-                            LiquidScrubberBar(
-                                currentTime: player.currentTime,
-                                duration: totalDuration,
-                                tintColor: Color(hex: palette.bright),
-                                isScrubbing: $isScrubbing,
-                                scrubTime: $scrubTime
-                            ) { targetTime in
-                                player.seek(to: targetTime)
-                            }
+                        // Native Liquid Glass Slider + Timestamps
+                        VStack(spacing: 2) {
+                            Slider(
+                                value: Binding(
+                                    get: { isScrubbing ? scrubTime : player.currentTime },
+                                    set: { scrubTime = $0 }
+                                ),
+                                in: 0...max(1.0, totalDuration),
+                                onEditingChanged: { editing in
+                                    isScrubbing = editing
+                                    if !editing {
+                                        player.seek(to: scrubTime)
+                                    }
+                                }
+                            )
+                            .tint(.white)
 
                             HStack {
                                 Text(formatTime(isScrubbing ? scrubTime : player.currentTime))
@@ -850,60 +857,43 @@ public struct LyricsSettingsMenuSheet: View {
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.6))
 
-                            LiquidGlassSegmentedPicker(
-                                selection: Binding(
-                                    get: { player.settings.preferredLyricsSource },
-                                    set: { newSource in
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            player.settings.preferredLyricsSource = newSource
-                                        }
-                                    }
-                                ),
-                                items: LyricsSourceKind.allCases,
-                                accentColor: .white,
-                                label: \.rawValue
-                            )
-                            .frame(height: 36)
+                            Picker("Источник текста", selection: $player.settings.preferredLyricsSource) {
+                                ForEach(LyricsSourceKind.allCases) { src in
+                                    Text(src.rawValue).tag(src)
+                                }
+                            }
+                            .pickerStyle(.segmented)
                             .onChange(of: player.settings.preferredLyricsSource) { _, _ in
                                 Task { await player.loadLyricsForCurrentTrack(forceRefresh: true) }
                             }
                         }
 
-                        // 3. Sync Mode Toggle & Style Cycler
+                        // 3. Sync Mode Switcher
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Режим синхронизации и стиль")
+                            Text("Режим синхронизации")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.6))
 
-                            LiquidGlassSegmentedPicker(
-                                selection: Binding(
-                                    get: { player.settings.lyricsSyncMode },
-                                    set: { newMode in
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            player.settings.lyricsSyncMode = newMode
-                                        }
-                                    }
-                                ),
-                                items: LyricsSyncMode.allCases,
-                                accentColor: .white,
-                                label: \.rawValue
-                            )
-                            .frame(height: 36)
+                            Picker("Режим синхронизации", selection: $player.settings.lyricsSyncMode) {
+                                ForEach(LyricsSyncMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
 
-                            LiquidGlassSegmentedPicker(
-                                selection: Binding(
-                                    get: { player.settings.lyricsTextStyle },
-                                    set: { newStyle in
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            player.settings.lyricsTextStyle = newStyle
-                                        }
-                                    }
-                                ),
-                                items: LyricsTextStyle.allCases,
-                                accentColor: .white,
-                                label: \.rawValue
-                            )
-                            .frame(height: 36)
+                        // 4. Style Switcher
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Стиль отображения текста")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.6))
+
+                            Picker("Стиль отображения текста", selection: $player.settings.lyricsTextStyle) {
+                                ForEach(LyricsTextStyle.allCases) { style in
+                                    Text(style.rawValue).tag(style)
+                                }
+                            }
+                            .pickerStyle(.segmented)
                         }
 
                         // 4. Per-Track Millisecond Offset Slider (-2000ms to +2000ms, step 25ms)

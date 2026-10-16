@@ -328,10 +328,12 @@ public struct LyricLine: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-public enum LyricsSourceKind: String, Codable, CaseIterable, Sendable {
+public enum LyricsSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
     case auto = "Авто"
     case lrclib = "LRCLib"
     case genius = "Genius"
+
+    public var id: String { rawValue }
 }
 
 public enum LyricsStatus: String, Codable, Sendable {

@@ -94,14 +94,13 @@ public struct SettingsAndProfileView: View {
                 Color.amyBackground.ignoresSafeArea()
 
                 VStack(spacing: 16) {
-                    // Top Pill Tabs with Fluid Droplet Physics
-                    LiquidGlassSegmentedPicker(
-                        selection: $activeSection,
-                        items: SettingsSectionTab.allCases,
-                        accentColor: .white,
-                        label: \.rawValue
-                    )
-                    .frame(height: 38)
+                    // Top Pill Tabs with Native Apple Liquid Glass Segmented Control
+                    Picker("Раздел настроек", selection: $activeSection) {
+                        ForEach(SettingsSectionTab.allCases) { tab in
+                            Text(tab.rawValue).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
 
