@@ -28,7 +28,32 @@ public struct ArtistDetailPageView: View {
 
     public var body: some View {
         ZStack(alignment: .top) {
-            Color.amyBackground.ignoresSafeArea()
+            // Full-screen ambient backdrop (eliminates black cut-off at bottom and through liquid glass)
+            ZStack {
+                Color.amyBackground
+
+                if let profile {
+                    AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
+                        img.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.clear
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .blur(radius: 54)
+                    .opacity(0.32)
+
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.25),
+                            Color.amyBackground.opacity(0.65),
+                            Color.amyBackground.opacity(0.90)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+            }
+            .ignoresSafeArea()
 
             if isLoading {
                 VStack {
@@ -40,9 +65,9 @@ public struct ArtistDetailPageView: View {
                 }
             } else if let profile {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 26) {
-                        // Top spacing to let back button float directly over hero without obstruction
-                        Spacer().frame(height: topSafeInset + 44)
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Compact top spacing so avatar starts right under top bar without huge empty space
+                        Spacer().frame(height: 8)
                             // Artist Hero Banner (Adaptive across iPhone 11 to 17 Pro Max)
                             VStack(spacing: 12) {
                                 let isCompact = UIScreen.main.bounds.width < 380
@@ -56,7 +81,7 @@ public struct ArtistDetailPageView: View {
                                 .frame(width: avatarDim, height: avatarDim)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.55), radius: 24, y: 10)
-                                .padding(.top, 16)
+                                .padding(.top, 8)
 
                                 Text(profile.name)
                                     .font(.system(size: isCompact ? 28 : 32, weight: .black))
@@ -173,7 +198,8 @@ public struct ArtistDetailPageView: View {
                                     .padding(.horizontal, 16)
 
                                     Button {
-                                        pushedRelease = latest
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        onOpenRelease(latest)
                                     } label: {
                                         HStack(spacing: 14) {
                                             AsyncImage(url: URL(string: latest.coverUrl ?? "")) { img in
@@ -265,13 +291,22 @@ public struct ArtistDetailPageView: View {
 
                             // "Альбомы", "Синглы и EP", "Плейлисты"
                             if !profile.albums.isEmpty {
-                                ReleaseHorizontalSection(title: "Альбомы", releases: profile.albums, onSelect: { rel in pushedRelease = rel })
+                                ReleaseHorizontalSection(title: "Альбомы", releases: profile.albums) { rel in
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    onOpenRelease(rel)
+                                }
                             }
                             if !profile.singles.isEmpty {
-                                ReleaseHorizontalSection(title: "Синглы и EP", releases: profile.singles, onSelect: { rel in pushedRelease = rel })
+                                ReleaseHorizontalSection(title: "Синглы и EP", releases: profile.singles) { rel in
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    onOpenRelease(rel)
+                                }
                             }
                             if !profile.playlists.isEmpty {
-                                ReleaseHorizontalSection(title: "Плейлисты", releases: profile.playlists, onSelect: { rel in pushedRelease = rel })
+                                ReleaseHorizontalSection(title: "Плейлисты", releases: profile.playlists) { rel in
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    onOpenRelease(rel)
+                                }
                             }
 
                             // "Похожие артисты"
@@ -322,8 +357,8 @@ public struct ArtistDetailPageView: View {
                                 }
                             }
 
-                        // Space for floating bottom miniplayer + tabbar
-                        Spacer(minLength: 160)
+                        // Compact space so albums naturally sit near dock without huge black void
+                        Spacer(minLength: 36)
                     }
                 }
             } else {
@@ -350,13 +385,13 @@ public struct ArtistDetailPageView: View {
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 8)
                     .contentShape(Capsule())
                 }
                 .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
             }
             .padding(.horizontal, 16)
-            .padding(.top, topSafeInset + 6)
+            .padding(.top, 4)
             .zIndex(100)
         }
         .task {
