@@ -232,8 +232,22 @@ public struct AppleLiquidGlassButtonStyle<S: Shape>: ButtonStyle {
                                         shape.fill(Color.black.opacity(0.18))
                                     }
                                 }
+                                .overlay {
+                                    if showStroke {
+                                        shape.stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.75),
+                                                    .white.opacity(0.20)
+                                                ],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ),
+                                            lineWidth: 0.85
+                                        )
+                                    }
+                                }
                         }
-                        .glassEffect(Glass.regular.tint(tintColor).interactive(), in: shape)
                 } else {
                     configuration.label
                         .glassEffect(
@@ -678,9 +692,23 @@ public struct LiquidGlassSwitch: View {
             Group {
                 if #available(iOS 26.0, *) {
                     Capsule()
-                        .fill(Color.white)
+                        .fill(isOn ? Color.white.opacity(0.95) : Color.white.opacity(0.85))
                         .glassEffect(Glass.regular.interactive(), in: Capsule())
-                        .shadow(color: .black.opacity(0.22), radius: 3, y: 1.5)
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            .white,
+                                            .white.opacity(0.40)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 0.85
+                                )
+                        }
+                        .shadow(color: .black.opacity(0.25), radius: 3, y: 1.5)
                 } else {
                     ZStack {
                         Capsule()
@@ -821,23 +849,39 @@ public struct LiquidGlassSegmentedPicker<T: Hashable & Equatable>: View {
                 Group {
                     if #available(iOS 26.0, *) {
                         Capsule()
-                            .fill(Color.white)
+                            .fill(Color.white.opacity(0.22))
                             .glassEffect(Glass.regular.interactive(), in: Capsule())
-                            .shadow(color: .black.opacity(0.20), radius: 5, y: 1.5)
+                            .overlay {
+                                Capsule()
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [
+                                                .white.opacity(0.75),
+                                                .white.opacity(0.18)
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        ),
+                                        lineWidth: 0.85
+                                    )
+                            }
+                            .shadow(color: .black.opacity(0.28), radius: 5, y: 1.5)
                     } else {
                         ZStack {
                             Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.white, Color(white: 0.92)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
+                                .fill(Color.white.opacity(0.22))
+                                .background(.ultraThinMaterial, in: Capsule())
                                 .shadow(color: .black.opacity(0.25), radius: 5, y: 1.5)
 
                             Capsule()
-                                .strokeBorder(Color.white.opacity(0.8), lineWidth: 0.8)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.75), .white.opacity(0.20)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 0.85
+                                )
                         }
                     }
                 }
@@ -858,9 +902,9 @@ public struct LiquidGlassSegmentedPicker<T: Hashable & Equatable>: View {
                             }
                         } label: {
                             Text(label(item))
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
                                 .lineLimit(1)
-                                .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.72))
+                                .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.60))
                                 .frame(width: slotW, height: totalH)
                                 .contentShape(Rectangle())
                         }

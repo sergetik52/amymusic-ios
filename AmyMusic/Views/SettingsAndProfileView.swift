@@ -127,11 +127,7 @@ public struct SettingsAndProfileView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+                        .fontWeight(.bold)
                 }
             }
             .sheet(isPresented: $isAvatarCropperOpen) {
@@ -490,21 +486,12 @@ public struct AvatarCropperSheetView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         saveCroppedAvatar()
                     }
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+                    .fontWeight(.bold)
                     .disabled(selectedImage == nil)
                 }
             }

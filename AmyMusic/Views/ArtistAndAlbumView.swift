@@ -314,32 +314,14 @@ public struct ArtistDetailSheetView: View {
                     ContentUnavailableView("Артист не найден", systemImage: "person.slash")
                 }
             }
-            .navigationBarBackButtonHidden(isNested)
+            .navigationBarBackButtonHidden(false)
             .appleLiquidGlassNavigationBar()
             .toolbar {
-                if isNested {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 34, height: 34)
-                        }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
-                    }
-                } else {
+                if !isNested {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            dismiss()
-                        } label: {
+                        Button(action: { dismiss() }) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 34, height: 34)
                         }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                     }
                 }
             }
@@ -562,32 +544,14 @@ public struct AlbumOrPlaylistSheetView: View {
                     }
                 }
             }
-            .navigationBarBackButtonHidden(isNested)
+            .navigationBarBackButtonHidden(false)
             .appleLiquidGlassNavigationBar()
             .toolbar {
-                if isNested {
+                if !isNested {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 34, height: 34)
-                        }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
-                    }
-                } else {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
+                        Button(action: { dismiss() }) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 34, height: 34)
                         }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                     }
                 }
 
@@ -597,17 +561,8 @@ public struct AlbumOrPlaylistSheetView: View {
                             player.deleteUserPlaylist(id: activeRelease.id)
                             dismiss()
                         } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 13, weight: .bold))
-                                Text("Удалить")
-                                    .font(.system(size: 13, weight: .semibold))
-                            }
-                            .foregroundStyle(.red)
-                            .padding(.horizontal, 10)
-                            .frame(height: 32)
+                            Label("Удалить", systemImage: "trash")
                         }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .red.opacity(0.25)))
                     }
                 }
             }
@@ -758,15 +713,9 @@ public struct AllArtistTracksSheetView: View {
             .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
+                    Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 34, height: 34)
                     }
-                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                 }
             }
         }

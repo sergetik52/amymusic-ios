@@ -954,11 +954,7 @@ public struct LyricsSettingsMenuSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+                        .fontWeight(.bold)
                 }
             }
         }
@@ -1093,11 +1089,7 @@ public struct QueueBottomSheetView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+                        .fontWeight(.bold)
                 }
             }
         }
@@ -1231,11 +1223,7 @@ public struct EqualizerSheetView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+                        .fontWeight(.bold)
                 }
             }
         }

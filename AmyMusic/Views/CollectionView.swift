@@ -369,11 +369,6 @@ public struct CreateOrImportPlaylistSheetView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Закрыть") { dismiss() }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
             }
         }

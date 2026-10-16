@@ -762,11 +762,7 @@ public struct WaveSeedModalView: View {
                         Task { await player.loadInitialRecommendations() }
                         dismiss()
                     }
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+                    .fontWeight(.bold)
                 }
             }
             .onChange(of: query) { _, newValue in
@@ -827,17 +823,18 @@ public struct PlayHistorySheetView: View {
             .navigationBarTitleDisplayMode(.inline)
             .appleLiquidGlassNavigationBar()
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     if !player.playHistory.isEmpty {
-                        Button("Очистить") {
+                        Button("Очистить", role: .destructive) {
                             player.playHistory.removeAll()
                             player.persistState()
                         }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .red.opacity(0.25)))
                     }
                 }
             }
