@@ -50,75 +50,11 @@ public struct RootTabView: View {
     }
 
     public var body: some View {
-        let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
-
-        ZStack(alignment: .bottom) {
-            Color.amyBackground.ignoresSafeArea()
-
-            // Main Phone Stage (.mobile-content-stage) with smooth fluid crossfade
-            ZStack {
-                switch activeTab {
-                case .wave:
-                    HomeWaveView(
-                        player: player,
-                        onOpenFullPlayer: {
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                                isFullPlayerOpen = true
-                            }
-                        },
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
-                        onOpenSettings: { isSettingsOpen = true },
-                        onNavigateCollection: {
-                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                                activeTab = .collection
-                            }
-                        }
-                    )
-                    .transition(.opacity)
-                case .trends:
-                    TrendsChartsView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
-                case .collection:
-                    CollectionView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.easeInOut(duration: 0.22), value: activeTab)
-            .safeAreaInset(edge: .bottom) {
-                // Separate Floating Surfaces: MobileMiniPlayer (64pt) + 8pt gap + MobileNavDock (58pt)
-                VStack(spacing: 8) {
-                    PhoneLiquidGlassMiniPlayer(
-                        player: player,
-                        glassNamespace: glassNamespace,
-                        onOpenFull: {
-                            isFullPlayerOpen = true
-                        },
-                        onOpenEqualizer: { isEqualizerOpen = true },
-                        onToggleKaraoke: {
-                            withAnimation(.spring(duration: 0.3)) {
-                                isMiniKaraokeOpen.toggle()
-                            }
-                        }
-                    )
-
-                    PhoneFloatingNavDock(
-                        activeTab: $activeTab,
-                        accentColor: themeAccent
-                    )
-                }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 6)
+        Group {
+            if #available(iOS 26.0, *) {
+                appleNativeLiquidGlassTabView
+            } else {
+                legacyFloatingDockTabView
             }
         }
         .preferredColorScheme(.dark)
@@ -173,6 +109,141 @@ public struct RootTabView: View {
                     selectedArtistId = id
                 }
             )
+        }
+    }
+
+    // MARK: - Authentic Apple Liquid Glass TabView (iOS 26+ WWDC 2025 Architecture)
+    @available(iOS 26.0, *)
+    @ViewBuilder
+    private var appleNativeLiquidGlassTabView: some View {
+        TabView(selection: $activeTab) {
+            Tab(AmyMobileTab.wave.label, systemImage: AmyMobileTab.wave.systemIcon, value: AmyMobileTab.wave) {
+                HomeWaveView(
+                    player: player,
+                    onOpenFullPlayer: {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                            isFullPlayerOpen = true
+                        }
+                    },
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenRelease: { rel in selectedRelease = rel },
+                    onOpenSettings: { isSettingsOpen = true },
+                    onNavigateCollection: {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                            activeTab = .collection
+                        }
+                    }
+                )
+            }
+
+            Tab(AmyMobileTab.trends.label, systemImage: AmyMobileTab.trends.systemIcon, value: AmyMobileTab.trends) {
+                TrendsChartsView(
+                    player: player,
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenSettings: { isSettingsOpen = true }
+                )
+            }
+
+            Tab(AmyMobileTab.collection.label, systemImage: AmyMobileTab.collection.systemIcon, value: AmyMobileTab.collection) {
+                CollectionView(
+                    player: player,
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenRelease: { rel in selectedRelease = rel },
+                    onOpenSettings: { isSettingsOpen = true }
+                )
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory {
+            PhoneLiquidGlassMiniPlayer(
+                player: player,
+                glassNamespace: glassNamespace,
+                onOpenFull: {
+                    isFullPlayerOpen = true
+                },
+                onOpenEqualizer: { isEqualizerOpen = true },
+                onToggleKaraoke: {
+                    withAnimation(.spring(duration: 0.3)) {
+                        isMiniKaraokeOpen.toggle()
+                    }
+                }
+            )
+            .padding(.horizontal, 14)
+            .padding(.bottom, 2)
+        }
+    }
+
+    // MARK: - Legacy Floating Nav Dock Fallback (< iOS 26.0)
+    @ViewBuilder
+    private var legacyFloatingDockTabView: some View {
+        let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
+
+        ZStack(alignment: .bottom) {
+            Color.amyBackground.ignoresSafeArea()
+
+            ZStack {
+                switch activeTab {
+                case .wave:
+                    HomeWaveView(
+                        player: player,
+                        onOpenFullPlayer: {
+                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                                isFullPlayerOpen = true
+                            }
+                        },
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true },
+                        onNavigateCollection: {
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                                activeTab = .collection
+                            }
+                        }
+                    )
+                    .transition(.opacity)
+                case .trends:
+                    TrendsChartsView(
+                        player: player,
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                    .transition(.opacity)
+                case .collection:
+                    CollectionView(
+                        player: player,
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                    .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.22), value: activeTab)
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 8) {
+                    PhoneLiquidGlassMiniPlayer(
+                        player: player,
+                        glassNamespace: glassNamespace,
+                        onOpenFull: {
+                            isFullPlayerOpen = true
+                        },
+                        onOpenEqualizer: { isEqualizerOpen = true },
+                        onToggleKaraoke: {
+                            withAnimation(.spring(duration: 0.3)) {
+                                isMiniKaraokeOpen.toggle()
+                            }
+                        }
+                    )
+
+                    PhoneFloatingNavDock(
+                        activeTab: $activeTab,
+                        accentColor: themeAccent
+                    )
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
+            }
         }
     }
 }

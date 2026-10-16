@@ -76,20 +76,27 @@ public struct AmyLiquidGlassCardModifier<S: Shape>: ViewModifier {
 public extension View {
     /// Applies iOS 26 Liquid Glass with optional dynamic album palette or theme tinting
     /// and interactive specular highlights on touch/drag.
+    @ViewBuilder
     func amyLiquidGlass<S: Shape>(
         in shape: S = RoundedRectangle(cornerRadius: 24, style: .continuous),
         tint: Color? = nil,
         tintOpacity: Double = 0.25,
         interactive: Bool = false
     ) -> some View {
-        modifier(
-            AmyLiquidGlassCardModifier(
-                shape: shape,
-                tintColor: tint,
-                tintOpacity: tintOpacity,
-                isInteractive: interactive
+        if #available(iOS 26.0, *) {
+            let base = (tint != nil) ? Glass.regular.tint(tint) : Glass.regular
+            let finalGlass = interactive ? base.interactive() : base
+            self.glassEffect(finalGlass, in: shape)
+        } else {
+            modifier(
+                AmyLiquidGlassCardModifier(
+                    shape: shape,
+                    tintColor: tint,
+                    tintOpacity: tintOpacity,
+                    isInteractive: interactive
+                )
             )
-        )
+        }
     }
 
     /// Applies authentic Apple Liquid Glass top bar treatment
