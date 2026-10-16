@@ -37,9 +37,16 @@ public struct CollectionView: View {
                             .foregroundStyle(.white.opacity(0.55))
 
                         Button {
-                            if let first = player.likedTracks.first {
-                                player.playTrack(first, in: player.likedTracks)
-                            }
+                            let likedRelease = ReleaseItem(
+                                id: "liked_tracks_special",
+                                title: "Мне нравится",
+                                artist: player.settings.displayName,
+                                coverUrl: player.likedTracks.first?.coverUrl,
+                                kind: .playlist,
+                                trackCount: player.likedTracks.count,
+                                tracks: player.likedTracks
+                            )
+                            onOpenRelease(likedRelease)
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "heart.fill")
@@ -61,30 +68,10 @@ public struct CollectionView: View {
                     // "Мне нравится" Horizontal Snap Pager (Pages of 5 tracks, matching CollectionView.jsx mobile)
                     if !player.likedTracks.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Мне нравится")
-                                    .font(.system(size: 20, weight: .black))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                Button("Все (\(player.likedTracks.count))") {
-                                    let likedRelease = ReleaseItem(
-                                        id: "liked_tracks_special",
-                                        title: "Мне нравится",
-                                        artist: player.settings.displayName,
-                                        coverUrl: player.likedTracks.first?.coverUrl,
-                                        kind: .playlist,
-                                        trackCount: player.likedTracks.count,
-                                        tracks: player.likedTracks
-                                    )
-                                    onOpenRelease(likedRelease)
-                                }
-                                .font(.system(size: 13, weight: .bold))
+                            Text("Мне нравится")
+                                .font(.system(size: 20, weight: .black))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
-                            }
-                            .padding(.horizontal, 16)
+                                .padding(.horizontal, 16)
 
                             let pages = stride(from: 0, to: min(player.likedTracks.count, 15), by: 5).map {
                                 Array(player.likedTracks[$0..<min($0 + 5, player.likedTracks.count)])
