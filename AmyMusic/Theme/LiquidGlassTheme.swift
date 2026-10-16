@@ -91,6 +91,194 @@ public extension View {
             )
         )
     }
+
+    /// Applies authentic Apple Liquid Glass top bar treatment
+    func appleLiquidGlassTopBar(
+        tint: Color? = nil,
+        showBottomSeparator: Bool = true,
+        cornerRadius: CGFloat = 0
+    ) -> some View {
+        modifier(
+            AppleLiquidGlassTopBarModifier(
+                tintColor: tint,
+                showBottomSeparator: showBottomSeparator,
+                cornerRadius: cornerRadius
+            )
+        )
+    }
+
+    /// Configures native navigation bar with Apple Liquid Glass material
+    func appleLiquidGlassNavigationBar(tint: Color? = nil) -> some View {
+        self
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+}
+
+// MARK: - Apple Native Liquid Glass Top Bar Modifier
+
+public struct AppleLiquidGlassTopBarModifier: ViewModifier {
+    public var tintColor: Color?
+    public var showBottomSeparator: Bool
+    public var cornerRadius: CGFloat
+
+    public init(tintColor: Color? = nil, showBottomSeparator: Bool = true, cornerRadius: CGFloat = 0) {
+        self.tintColor = tintColor
+        self.showBottomSeparator = showBottomSeparator
+        self.cornerRadius = cornerRadius
+    }
+
+    public func body(content: Content) -> some View {
+        content
+            .background {
+                if cornerRadius > 0 {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            if let tintColor {
+                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                    .fill(tintColor.opacity(0.16))
+                            }
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            .white.opacity(0.35),
+                                            .white.opacity(0.08),
+                                            .white.opacity(0.18)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 0.8
+                                )
+                        }
+                } else {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            if let tintColor {
+                                Rectangle().fill(tintColor.opacity(0.12))
+                            }
+                        }
+                        .overlay(alignment: .bottom) {
+                            if showBottomSeparator {
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                .white.opacity(0.0),
+                                                .white.opacity(0.20),
+                                                .white.opacity(0.0)
+                                            ],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(height: 0.8)
+                            }
+                        }
+                }
+            }
+    }
+}
+
+// MARK: - Apple Liquid Glass Interactive Button Style
+
+public struct AppleLiquidGlassButtonStyle<S: Shape>: ButtonStyle {
+    public var shape: S
+    public var tintColor: Color?
+    public var tintOpacity: Double
+
+    public init(shape: S, tintColor: Color? = nil, tintOpacity: Double = 0.20) {
+        self.shape = shape
+        self.tintColor = tintColor
+        self.tintOpacity = tintOpacity
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                shape
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        if let tintColor {
+                            shape.fill(tintColor.opacity(tintOpacity))
+                        }
+                    }
+                    .overlay {
+                        if configuration.isPressed {
+                            shape.fill(Color.white.opacity(0.14))
+                        }
+                    }
+                    .overlay {
+                        shape.stroke(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.40),
+                                    .white.opacity(0.08),
+                                    .white.opacity(0.20)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.8
+                        )
+                    }
+            }
+            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
+            .animation(.spring(response: 0.28, dampingFraction: 0.72), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed {
+                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                }
+            }
+    }
+}
+
+public extension ButtonStyle where Self == AppleLiquidGlassButtonStyle<Capsule> {
+    static var appleLiquidGlass: AppleLiquidGlassButtonStyle<Capsule> {
+        AppleLiquidGlassButtonStyle(shape: Capsule())
+    }
+    static func appleLiquidGlass(tint: Color? = nil) -> AppleLiquidGlassButtonStyle<Capsule> {
+        AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: tint)
+    }
+}
+
+public extension ButtonStyle {
+    static func appleLiquidGlass<S: Shape>(_ shape: S, tint: Color? = nil) -> AppleLiquidGlassButtonStyle<S> {
+        AppleLiquidGlassButtonStyle(shape: shape, tintColor: tint)
+    }
+}
+
+// MARK: - Dedicated Apple Liquid Glass Back Button
+
+public struct AppleLiquidGlassBackButton: View {
+    public var title: String
+    public var action: () -> Void
+
+    public init(title: String = "Назад", action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .bold))
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+        }
+        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+    }
 }
 
 // MARK: - Cover Art Palette Extractor (Port of extractPaletteFromImage in AudioPlayerContext.jsx)

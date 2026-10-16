@@ -135,10 +135,15 @@ public struct SettingsAndProfileView: View {
             }
             .navigationTitle("Настройки")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
-                        .fontWeight(.bold)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
             }
             .sheet(isPresented: $isAvatarCropperOpen) {
@@ -493,15 +498,25 @@ public struct AvatarCropperSheetView: View {
             }
             .navigationTitle("Фото профиля")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         saveCroppedAvatar()
                     }
-                    .fontWeight(.bold)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                     .disabled(selectedImage == nil)
                 }
             }

@@ -107,8 +107,25 @@ public struct FullPlayerOverlayView: View {
                             }
                         }
                         .padding(3)
-                        .background(.white.opacity(0.10), in: Capsule())
-                        .overlay(Capsule().stroke(.white.opacity(0.18), lineWidth: 0.5))
+                        .background {
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                                .overlay {
+                                    Capsule()
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.35),
+                                                    .white.opacity(0.08),
+                                                    .white.opacity(0.18)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 0.8
+                                        )
+                                }
+                        }
                         .fixedSize(horizontal: true, vertical: false)
 
                         // 2. Left ("Свернуть") and Right (aA + Очередь)
@@ -126,12 +143,10 @@ public struct FullPlayerOverlayView: View {
                                         .fixedSize(horizontal: true, vertical: false)
                                 }
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 9)
+                                .padding(.horizontal, 10)
                                 .padding(.vertical, 7)
-                                .background(.white.opacity(0.12), in: Capsule())
-                                .overlay(Capsule().stroke(.white.opacity(0.20), lineWidth: 0.5))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
 
                             Spacer()
 
@@ -144,11 +159,9 @@ public struct FullPlayerOverlayView: View {
                                         Image(systemName: "textformat.size")
                                             .font(.system(size: 12, weight: .bold))
                                             .foregroundStyle(.white)
-                                            .padding(7)
-                                            .background(.white.opacity(0.12), in: Circle())
-                                            .overlay(Circle().stroke(.white.opacity(0.20), lineWidth: 0.5))
+                                            .padding(8)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                                 }
 
                                 Button {
@@ -172,13 +185,11 @@ public struct FullPlayerOverlayView: View {
                                         }
                                     }
                                     .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
+                                    .padding(.horizontal, 10)
                                     .padding(.vertical, 7)
-                                    .background(.white.opacity(0.12), in: Capsule())
-                                    .overlay(Capsule().stroke(.white.opacity(0.20), lineWidth: 0.5))
                                     .fixedSize(horizontal: true, vertical: false)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                             }
                         }
                     }
@@ -980,9 +991,15 @@ public struct LyricsSettingsMenuSheet: View {
             }
             .navigationTitle("Настройки текста")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
             }
         }
@@ -1110,14 +1127,18 @@ public struct QueueBottomSheetView: View {
             }
             .navigationTitle("Очередь")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     EditButton().tint(.white)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.white)
-                        .fontWeight(.bold)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
             }
         }
@@ -1247,9 +1268,15 @@ public struct EqualizerSheetView: View {
             }
             .navigationTitle("Эквалайзер и Звук")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                 }
             }
         }

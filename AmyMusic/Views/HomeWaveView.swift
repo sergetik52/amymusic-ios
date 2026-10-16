@@ -265,12 +265,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                         }
                         .padding(.horizontal, 14)
                         .frame(height: 44)
-                        .amyLiquidGlass(
-                            in: Capsule(),
-                            tint: Color(hex: "#121212"),
-                            tintOpacity: 0.72,
-                            interactive: true
-                        )
+                        .appleLiquidGlassTopBar(tint: Color(hex: "#121212"), showBottomSeparator: false, cornerRadius: 22)
 
                         // Compact Profile / Settings Avatar Button
                         Button(action: onOpenSettings) {
@@ -282,7 +277,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                 secondaryHex: player.settings.themePreset.secondaryHex
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                     }
                     .padding(.horizontal, 14)
                     .padding(.top, topSafeInset + 6)

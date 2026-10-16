@@ -322,23 +322,12 @@ public struct ArtistDetailSheetView: View {
                 }
             }
             .navigationBarBackButtonHidden(true)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
+                    AppleLiquidGlassBackButton {
                         dismiss()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("Назад")
-                                .font(.system(size: 15, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .amyLiquidGlass(in: Capsule(), interactive: true)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .navigationDestination(item: $pushedRelease) { rel in
@@ -564,23 +553,12 @@ public struct AlbumOrPlaylistSheetView: View {
                 }
             }
             .navigationBarBackButtonHidden(true)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
+                    AppleLiquidGlassBackButton {
                         dismiss()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("Назад")
-                                .font(.system(size: 15, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .amyLiquidGlass(in: Capsule(), interactive: true)
                     }
-                    .buttonStyle(.plain)
                 }
 
                 if isDeletablePlaylist {
@@ -598,9 +576,8 @@ public struct AlbumOrPlaylistSheetView: View {
                             .foregroundStyle(.red)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
-                            .amyLiquidGlass(in: Capsule(), tint: .red, tintOpacity: 0.18, interactive: true)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .red.opacity(0.35)))
                     }
                 }
             }
@@ -750,23 +727,12 @@ public struct AllArtistTracksSheetView: View {
             }
             .navigationTitle("Все треки: \(artistName)")
             .navigationBarTitleDisplayMode(.inline)
+            .appleLiquidGlassNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
+                    AppleLiquidGlassBackButton {
                         dismiss()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("Назад")
-                                .font(.system(size: 15, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .amyLiquidGlass(in: Capsule(), interactive: true)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
