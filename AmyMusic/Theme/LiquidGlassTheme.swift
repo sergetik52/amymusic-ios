@@ -575,4 +575,363 @@ public struct FluidMeshBackgroundView: View {
     }
 }
 
+// MARK: - Apple Liquid Glass Switch with Fluid Viscous Droplet Physics
+
+public struct LiquidGlassSwitch: View {
+    @Binding public var isOn: Bool
+    public var accentColor: Color?
+
+    @State private var dragX: CGFloat = 0
+    @State private var isDragging: Bool = false
+    @State private var isPressed: Bool = false
+
+    private let trackWidth: CGFloat = 52
+    private let trackHeight: CGFloat = 30
+    private let thumbRestingSize: CGFloat = 24
+    private let padding: CGFloat = 3
+
+    public init(isOn: Binding<Bool>, accentColor: Color? = nil) {
+        self._isOn = isOn
+        self.accentColor = accentColor
+    }
+
+    private var travelDistance: CGFloat {
+        trackWidth - thumbRestingSize - (padding * 2)
+    }
+
+    public var body: some View {
+        let activeAccent = accentColor ?? Color.white
+        let currentOffset = isOn ? travelDistance : 0
+        let visualOffset = isDragging ? min(max(0, currentOffset + dragX), travelDistance) : currentOffset
+        let progress = travelDistance > 0 ? (visualOffset / travelDistance) : (isOn ? 1.0 : 0.0)
+
+        // Fluid droplet viscous stretch: expands horizontally when pulled/dragged, slightly compresses vertically
+        let stretch: CGFloat = isDragging ? min(10, abs(dragX) * 0.45) : (isPressed ? 4 : 0)
+        let thumbWidth: CGFloat = thumbRestingSize + stretch
+        let thumbHeight: CGFloat = max(18, thumbRestingSize - (stretch * 0.35))
+
+        // Adjusted thumb center X so stretch expands toward the direction of movement
+        let thumbX: CGFloat = padding + visualOffset + (thumbRestingSize / 2) + (dragX > 0 ? (stretch * 0.25) : (dragX < 0 ? -(stretch * 0.25) : 0))
+
+        ZStack(alignment: .leading) {
+            // 1. Recessed Frosted Glass Track
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule().fill(Color(hex: "#101014").opacity(0.60))
+                }
+                .overlay {
+                    // Fluid glowing chamber fill from inside the glass
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    activeAccent.opacity(0.55),
+                                    activeAccent.opacity(0.35)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .opacity(Double(progress))
+                }
+                .overlay {
+                    // Specular rim stroke
+                    Capsule()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.42 + 0.18 * Double(progress)),
+                                    .white.opacity(0.08),
+                                    .white.opacity(0.22)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.85
+                        )
+                }
+
+            // 2. Liquid Glass Droplet (Thumb)
+            ZStack {
+                // Soft depth drop shadow
+                Capsule()
+                    .fill(Color.black.opacity(0.38))
+                    .frame(width: thumbWidth, height: thumbHeight)
+                    .blur(radius: 2.5)
+                    .offset(y: 1.5)
+
+                // Droplet body with specular lens highlights
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .white,
+                                Color(white: 0.93)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: thumbWidth, height: thumbHeight)
+
+                // Top Specular Curved Lens Highlight
+                VStack {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [.white.opacity(0.95), .white.opacity(0.0)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: max(8, thumbWidth - 6), height: max(6, thumbHeight * 0.40))
+                        .padding(.top, 1.5)
+                    Spacer()
+                }
+                .frame(width: thumbWidth, height: thumbHeight)
+                .allowsHitTesting(false)
+
+                // Specular rim border
+                Capsule()
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.95),
+                                .white.opacity(0.45)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.85
+                    )
+                    .frame(width: thumbWidth, height: thumbHeight)
+            }
+            .position(x: thumbX, y: trackHeight / 2)
+            .animation(.spring(response: 0.28, dampingFraction: 0.68), value: visualOffset)
+            .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.72), value: stretch)
+        }
+        .frame(width: trackWidth, height: trackHeight)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { val in
+                    if !isDragging {
+                        isDragging = true
+                        isPressed = true
+                        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                    }
+                    dragX = val.translation.width
+                }
+                .onEnded { val in
+                    let translation = val.translation.width
+                    let shouldToggle: Bool
+                    if abs(translation) > 8 {
+                        shouldToggle = isOn ? (translation < -8) : (translation > 8)
+                    } else {
+                        shouldToggle = true
+                    }
+
+                    if shouldToggle {
+                        isOn.toggle()
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } else {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.68)) {
+                        dragX = 0
+                        isDragging = false
+                        isPressed = false
+                    }
+                }
+        )
+    }
+}
+
+public struct AppleLiquidGlassToggleStyle: ToggleStyle {
+    public var accentColor: Color?
+
+    public init(accentColor: Color? = nil) {
+        self.accentColor = accentColor
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+            Spacer(minLength: 8)
+            LiquidGlassSwitch(isOn: configuration.$isOn, accentColor: accentColor)
+        }
+    }
+}
+
+public extension ToggleStyle where Self == AppleLiquidGlassToggleStyle {
+    static var appleLiquidGlass: AppleLiquidGlassToggleStyle {
+        AppleLiquidGlassToggleStyle()
+    }
+
+    static func appleLiquidGlass(accent: Color?) -> AppleLiquidGlassToggleStyle {
+        AppleLiquidGlassToggleStyle(accentColor: accent)
+    }
+}
+
+// MARK: - Apple Liquid Glass Segmented Picker with Fluid Elastic Droplet
+
+public struct LiquidGlassSegmentedPicker<T: Hashable & Equatable>: View {
+    @Binding public var selection: T
+    public var items: [T]
+    public var accentColor: Color?
+    public var label: (T) -> String
+
+    @State private var dragX: CGFloat = 0
+    @State private var isHolding: Bool = false
+    @State private var hoveredItem: T? = nil
+
+    public init(
+        selection: Binding<T>,
+        items: [T],
+        accentColor: Color? = nil,
+        label: @escaping (T) -> String
+    ) {
+        self._selection = selection
+        self.items = items
+        self.accentColor = accentColor
+        self.label = label
+    }
+
+    public var body: some View {
+        GeometryReader { geo in
+            let totalW = geo.size.width
+            let totalH = geo.size.height
+            let count = CGFloat(max(1, items.count))
+            let slotW = totalW / count
+
+            let selectedIndex = CGFloat(items.firstIndex(of: selection) ?? 0)
+            let idleX = slotW * (selectedIndex + 0.5)
+            let dropletX = isHolding ? min(max(slotW * 0.45, dragX), totalW - slotW * 0.45) : idleX
+
+            let stretch: CGFloat = isHolding ? min(18, abs(dragX - idleX) * 0.28) : 0
+            let dropletW = max(30, slotW * 0.92 + stretch)
+            let dropletH = max(22, totalH - 6)
+
+            ZStack {
+                // Liquid Droplet Indicator
+                ZStack {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [.white, Color(white: 0.92)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
+
+                    // Specular lens highlight
+                    VStack {
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.95), .white.opacity(0.0)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: max(4, dropletH * 0.38))
+                            .padding(.top, 1.5)
+                            .padding(.horizontal, 4)
+                        Spacer()
+                    }
+
+                    Capsule()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [.white.opacity(0.95), .white.opacity(0.40)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.85
+                        )
+                }
+                .frame(width: dropletW, height: dropletH)
+                .position(x: dropletX, y: totalH / 2)
+                .animation(.interactiveSpring(response: 0.20, dampingFraction: 0.70), value: dropletX)
+                .animation(.spring(response: 0.28, dampingFraction: 0.70), value: isHolding)
+                .allowsHitTesting(false)
+
+                // Segment Items
+                HStack(spacing: 0) {
+                    ForEach(items, id: \.self) { item in
+                        let isSelected = (isHolding ? (hoveredItem == item) : (selection == item))
+                        Button {
+                            UISelectionFeedbackGenerator().selectionChanged()
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.70)) {
+                                selection = item
+                            }
+                        } label: {
+                            Text(label(item))
+                                .font(.system(size: 13, weight: .bold))
+                                .lineLimit(1)
+                                .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.72))
+                                .frame(width: slotW, height: totalH)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { val in
+                        if !isHolding {
+                            isHolding = true
+                            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                        }
+                        dragX = val.location.x
+                        let index = min(items.count - 1, max(0, Int(floor(val.location.x / slotW))))
+                        let item = items[index]
+                        if hoveredItem != item {
+                            hoveredItem = item
+                            UISelectionFeedbackGenerator().selectionChanged()
+                        }
+                    }
+                    .onEnded { val in
+                        let index = min(items.count - 1, max(0, Int(floor(val.location.x / slotW))))
+                        let finalItem = items[index]
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.70)) {
+                            selection = finalItem
+                            isHolding = false
+                            hoveredItem = nil
+                        }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+            )
+        }
+        .frame(height: 38)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule().fill(Color(hex: "#101014").opacity(0.60))
+                }
+        }
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.38),
+                            .white.opacity(0.08),
+                            .white.opacity(0.20)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.85
+                )
+        }
+    }
+}
+
 

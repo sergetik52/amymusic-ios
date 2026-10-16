@@ -79,54 +79,14 @@ public struct FullPlayerOverlayView: View {
                 VStack(spacing: 0) {
                     // Top Bar: True Centered Switcher via ZStack + Left/Right Action Controls
                     ZStack {
-                        // 1. Center Stage Switcher ("Песня" | "Текст") - Dead Center on Screen
-                        HStack(spacing: 2) {
-                            ForEach(FullPlayerCenterStageMode.allCases, id: \.rawValue) { mode in
-                                let active = stageMode == mode
-                                Button {
-                                    UISelectionFeedbackGenerator().selectionChanged()
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        stageMode = mode
-                                    }
-                                } label: {
-                                    Text(mode.rawValue)
-                                        .font(.system(size: 13, weight: .bold))
-                                        .lineLimit(1)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                        .foregroundStyle(active ? .black : .white.opacity(0.70))
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 6)
-                                        .background {
-                                            if active {
-                                                Capsule()
-                                                    .fill(.white)
-                                            }
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(3)
-                        .background {
-                            Capsule()
-                                .fill(.ultraThinMaterial)
-                                .overlay {
-                                    Capsule()
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [
-                                                    .white.opacity(0.35),
-                                                    .white.opacity(0.08),
-                                                    .white.opacity(0.18)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 0.8
-                                        )
-                                }
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
+                        // 1. Center Stage Switcher ("Песня" | "Текст") - Dead Center on Screen with Fluid Droplet Physics
+                        LiquidGlassSegmentedPicker(
+                            selection: $stageMode,
+                            items: FullPlayerCenterStageMode.allCases,
+                            accentColor: .white,
+                            label: \.rawValue
+                        )
+                        .frame(width: 172, height: 34)
 
                         // 2. Left ("Свернуть") and Right (aA + Очередь)
                         HStack(alignment: .center) {
@@ -902,19 +862,20 @@ public struct LyricsSettingsMenuSheet: View {
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.6))
 
-                            Picker("Источник", selection: Binding(
-                                get: { player.settings.preferredLyricsSource },
-                                set: { newSource in
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        player.settings.preferredLyricsSource = newSource
+                            LiquidGlassSegmentedPicker(
+                                selection: Binding(
+                                    get: { player.settings.preferredLyricsSource },
+                                    set: { newSource in
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            player.settings.preferredLyricsSource = newSource
+                                        }
                                     }
-                                }
-                            )) {
-                                ForEach(LyricsSourceKind.allCases, id: \.self) { src in
-                                    Text(src.rawValue).tag(src)
-                                }
-                            }
-                            .pickerStyle(.segmented)
+                                ),
+                                items: LyricsSourceKind.allCases,
+                                accentColor: .white,
+                                label: \.rawValue
+                            )
+                            .frame(height: 36)
                             .onChange(of: player.settings.preferredLyricsSource) { _, _ in
                                 Task { await player.loadLyricsForCurrentTrack(forceRefresh: true) }
                             }
@@ -926,33 +887,35 @@ public struct LyricsSettingsMenuSheet: View {
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.6))
 
-                            Picker("Режим", selection: Binding(
-                                get: { player.settings.lyricsSyncMode },
-                                set: { newMode in
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        player.settings.lyricsSyncMode = newMode
+                            LiquidGlassSegmentedPicker(
+                                selection: Binding(
+                                    get: { player.settings.lyricsSyncMode },
+                                    set: { newMode in
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            player.settings.lyricsSyncMode = newMode
+                                        }
                                     }
-                                }
-                            )) {
-                                ForEach(LyricsSyncMode.allCases) { mode in
-                                    Text(mode.rawValue).tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
+                                ),
+                                items: LyricsSyncMode.allCases,
+                                accentColor: .white,
+                                label: \.rawValue
+                            )
+                            .frame(height: 36)
 
-                            Picker("Стиль", selection: Binding(
-                                get: { player.settings.lyricsTextStyle },
-                                set: { newStyle in
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        player.settings.lyricsTextStyle = newStyle
+                            LiquidGlassSegmentedPicker(
+                                selection: Binding(
+                                    get: { player.settings.lyricsTextStyle },
+                                    set: { newStyle in
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            player.settings.lyricsTextStyle = newStyle
+                                        }
                                     }
-                                }
-                            )) {
-                                ForEach(LyricsTextStyle.allCases) { style in
-                                    Text(style.rawValue).tag(style)
-                                }
-                            }
-                            .pickerStyle(.segmented)
+                                ),
+                                items: LyricsTextStyle.allCases,
+                                accentColor: .white,
+                                label: \.rawValue
+                            )
+                            .frame(height: 36)
                         }
 
                         // 4. Per-Track Millisecond Offset Slider (-2000ms to +2000ms, step 25ms)
@@ -1044,7 +1007,7 @@ public struct QueueBottomSheetView: View {
                                 }
                             }
                         }
-                        .tint(.white)
+                        .toggleStyle(.appleLiquidGlass)
                         .listRowBackground(Color.white.opacity(0.06))
                     }
 
@@ -1170,7 +1133,7 @@ public struct EqualizerSheetView: View {
                         Toggle("Эквалайзер (10 полос)", isOn: $player.settings.equalizerEnabled)
                             .font(.system(size: 16, weight: .black))
                             .foregroundStyle(.white)
-                            .tint(.white)
+                            .toggleStyle(.appleLiquidGlass)
 
                         Button("Сбросить") {
                             player.selectEqualizerPreset(.flat)
@@ -1266,7 +1229,7 @@ public struct EqualizerSheetView: View {
                                 .foregroundStyle(.white.opacity(0.55))
                         }
                     }
-                    .tint(.white)
+                    .toggleStyle(.appleLiquidGlass)
                     .padding(16)
                     .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .padding(.horizontal, 16)

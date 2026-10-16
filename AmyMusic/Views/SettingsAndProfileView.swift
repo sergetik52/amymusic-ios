@@ -94,26 +94,14 @@ public struct SettingsAndProfileView: View {
                 Color.amyBackground.ignoresSafeArea()
 
                 VStack(spacing: 16) {
-                    // Top Pill Tabs
-                    HStack(spacing: 8) {
-                        ForEach(SettingsSectionTab.allCases) { tab in
-                            let active = activeSection == tab
-                            Button {
-                                UISelectionFeedbackGenerator().selectionChanged()
-                                withAnimation(.spring(duration: 0.25)) {
-                                    activeSection = tab
-                                }
-                            } label: {
-                                Text(tab.rawValue)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(active ? .black : .white.opacity(0.8))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(active ? .white : .white.opacity(0.07), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    // Top Pill Tabs with Fluid Droplet Physics
+                    LiquidGlassSegmentedPicker(
+                        selection: $activeSection,
+                        items: SettingsSectionTab.allCases,
+                        accentColor: .white,
+                        label: \.rawValue
+                    )
+                    .frame(height: 38)
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
 
@@ -280,7 +268,7 @@ public struct SettingsAndProfileView: View {
                 Toggle("Плавный переход (Crossfade)", isOn: $player.settings.crossfadeEnabled)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
-                    .tint(.white)
+                    .toggleStyle(.appleLiquidGlass)
                     .onChange(of: player.settings.crossfadeEnabled) { _, _ in
                         player.persistState()
                     }
@@ -307,7 +295,7 @@ public struct SettingsAndProfileView: View {
                 Toggle("Воспроизведение без пауз (Gapless)", isOn: $player.settings.gaplessPlayback)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
-                    .tint(.white)
+                    .toggleStyle(.appleLiquidGlass)
                     .onChange(of: player.settings.gaplessPlayback) { _, _ in
                         player.persistState()
                     }
@@ -315,7 +303,7 @@ public struct SettingsAndProfileView: View {
                 Toggle("Нормализация громкости", isOn: $player.settings.volumeNormalization)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
-                    .tint(.white)
+                    .toggleStyle(.appleLiquidGlass)
                     .onChange(of: player.settings.volumeNormalization) { _, _ in
                         player.persistState()
                     }
