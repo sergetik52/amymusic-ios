@@ -1,0 +1,52 @@
+name: AmyMusic
+options:
+  bundleIdPrefix: com.amymusic
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+targets:
+  AmyMusic:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: AmyMusic
+    info:
+      path: AmyMusic/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIBackgroundModes: [audio]
+        NSSupportsLiveActivities: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSPhotoLibraryUsageDescription: "Для выбора и обрезки аватара профиля"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amymusic.ios
+        INFOPLIST_FILE: AmyMusic/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+    dependencies:
+      - target: AmyMusicWidget
+  AmyMusicWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: AmyMusicWidget
+      - path: AmyMusic/Audio/AmyMusicLiveActivity.swift
+      - path: AmyMusic/Theme/LiquidGlassTheme.swift
+      - path: AmyMusic/Models/Models.swift
+    info:
+      path: AmyMusicWidget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amymusic.ios.widget
+        INFOPLIST_FILE: AmyMusicWidget/Info.plist

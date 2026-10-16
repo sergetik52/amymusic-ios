@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AmyMusic iOS 26 — Liquid Glass Interactive Preview</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    * { box-sizing: border-box; user-select: none; -webkit-font-smoothing: antialiased; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* iOS 26 Liquid Glass Specular Surface */
+    .liquid-glass {
+      background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(20,20,26,0.68) 45%, rgba(131,65,239,0.16) 100%);
+      backdrop-filter: blur(28px) saturate(1.65);
+      -webkit-backdrop-filter: blur(28px) saturate(1.65);
+      box-shadow:
+        0 12px 36px rgba(0, 0, 0, 0.48),
+        inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+        inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .liquid-glass-pill {
+      background: linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(25,25,32,0.72) 100%);
+      backdrop-filter: blur(24px) saturate(1.5);
+      -webkit-backdrop-filter: blur(24px) saturate(1.5);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 8px 24px rgba(0,0,0,0.35);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    /* Nav Dock Shimmer & Sheen matching src/main.css */
+    @keyframes navSheen {
+      0%, 25% { transform: translateX(-140%) skewX(-14deg); opacity: 0; }
+      40% { opacity: 0.85; }
+      70%, 100% { transform: translateX(350%) skewX(-14deg); opacity: 0; }
+    }
+    .dock-sheen {
+      animation: navSheen 4.6s ease-in-out infinite;
+    }
+
+    @keyframes fluidOrb1 {
+      0%, 100% { transform: translate(0px, 0px) scale(1); }
+      50% { transform: translate(28px, -24px) scale(1.14); }
+    }
+    @keyframes fluidOrb2 {
+      0%, 100% { transform: translate(0px, 0px) scale(1); }
+      50% { transform: translate(-32px, 26px) scale(1.18); }
+    }
+    .orb-1 { animation: fluidOrb1 8s ease-in-out infinite; }
+    .orb-2 { animation: fluidOrb2 10s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] p-4 md:p-6">
+
+  <!-- Top Controls & Screen Switcher Bar for Preview -->
+  <div class="max-w-5xl mx-auto mb-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-lg font-bold text-[var(--foreground)]">AmyMusic iOS 26 (SwiftUI + Liquid Glass) — Интерактивный макет</h1>
+        <p class="text-xs text-[var(--muted-foreground)]">Кликайте по вкладкам в доке телефона, строке поиска в шапке, мини-плееру, 3D ДНК, эквалайзеру и текстам</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="switchScreen('wave')" id="btn-top-wave" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[#8341EF] text-white">1. Моя волна</button>
+        <button onclick="switchScreen('dna')" id="btn-top-dna" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--secondary)] text-[var(--secondary-foreground)]">2. 3D ДНК Волна</button>
+        <button onclick="switchScreen('trends')" id="btn-top-trends" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--secondary)] text-[var(--secondary-foreground)]">3. Чарты Топ-100</button>
+        <button onclick="switchScreen('collection')" id="btn-top-collection" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--secondary)] text-[var(--secondary-foreground)]">4. Коллекция</button>
+        <button onclick="openFullPlayer(true)" id="btn-top-player" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--secondary)] text-[var(--secondary-foreground)]">5. Полный плеер + Караоке</button>
+        <button onclick="toggleEqualizer(true)" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[var(--secondary)] text-[var(--secondary-foreground)]">6. Эквалайзер (10 полос)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phone Interactive Stage -->
+  <div class="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 max-w-5xl mx-auto">
+
+    <!-- iPhone 17 Pro / iOS 26 Viewport (393 x 832) -->
+    <div class="relative w-[393px] h-[832px] rounded-[52px] bg-[#090909] text-white shadow-2xl border-[6px] border-[#242429] overflow-hidden shrink-0 flex flex-col">
+
+      <!-- iOS 26 Dynamic Island (Live Activity - GameOverlay.jsx counterpart) -->
+      <div onclick="openFullPlayer(true)" class="cursor-pointer z-50 mx-auto mt-2.5 px-3.5 py-1.5 rounded-full bg-black border border-white/15 flex items-center gap-3 shadow-lg transition-transform hover:scale-105">
+        <div class="w-5 h-5 rounded-full bg-gradient-to-tr from-[#8341EF] to-[#d8b4fe] flex items-center justify-center">
+          <span class="text-xs">♪</span>
+        </div>
+        <span id="island-title" class="text-xs font-bold text-white/90 truncate max-w-[130px]">ДИНАСТИЯ — VILLIAN</span>
+        <div class="flex items-end gap-0.5 h-3">
+          <span class="w-0.5 h-2.5 bg-[#A855F7] rounded-full animate-pulse"></span>
+          <span class="w-0.5 h-3.5 bg-[#d8b4fe] rounded-full animate-pulse"></span>
+          <span class="w-0.5 h-1.5 bg-[#8341EF] rounded-full animate-pulse"></span>
+        </div>
+      </div>
+
+      <!-- MAIN SCROLLABLE STAGE (.mobile-content-stage) -->
+      <div id="phone-scroll-stage" class="relative flex-1 overflow-y-auto no-scrollbar pb-[156px]">
+
+        <!-- ==================== TAB 1: МОЯ ВОЛНА (HomeWaveView) ==================== -->
+        <div id="screen-wave" class="block">
+          <!-- .home-hero (height: 280px, embedded .mobile-wave-search-slot at top) -->
+          <div class="relative h-[280px] w-full overflow-hidden">
+            <!-- Blurred Cover & Gradient Background -->
+            <div class="absolute inset-0 bg-gradient-to-br from-[#2a0a4a] via-[#150428] to-[#090909]"></div>
+            <div class="absolute -top-10 -left-10 w-64 h-64 rounded-full bg-[#8341EF]/40 blur-[55px] orb-1"></div>
+            <div class="absolute top-12 right-0 w-56 h-56 rounded-full bg-[#d8b4fe]/25 blur-[60px] orb-2"></div>
+
+            <!-- Live Canvas DNA Wave inside Hero -->
+            <canvas id="hero-wave-canvas" width="393" height="280" class="absolute inset-0 opacity-65 pointer-events-none"></canvas>
+            <div class="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-[#090909]"></div>
+
+            <!-- .mobile-wave-search-slot (Embedded Search at top of Hero!) -->
+            <div class="absolute top-2.5 left-3 right-3 z-30 flex items-center gap-2">
+              <div class="liquid-glass-pill flex-1 h-[44px] rounded-full px-3.5 flex items-center gap-2">
+                <svg class="w-4 h-4 text-white/60 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input
+                  id="embedded-search-input"
+                  type="text"
+                  placeholder="Что вы чувствуете или ищете?"
+                  onfocus="toggleEmbeddedSearch(true)"
+                  oninput="filterEmbeddedSearch(this.value)"
+                  class="bg-transparent text-xs text-white placeholder-white/50 focus:outline-none w-full font-medium"
+                />
+                <button id="search-clear-btn" onclick="toggleEmbeddedSearch(false)" class="hidden text-xs text-white/60 hover:text-white">✕</button>
+              </div>
+              <!-- Profile Avatar Button (44x44) -->
+              <button onclick="toggleSettingsModal(true)" class="w-[44px] h-[44px] rounded-full bg-gradient-to-tr from-[#8341EF] to-[#A855F7] flex items-center justify-center font-black text-sm border border-white/20 shadow-md shrink-0">
+                A
+              </button>
+            </div>
+
+            <!--Foreground Hero Content (padding-top: 112px, 124x124 cover + Моя волна + 56x56 Play) -->
+            <div class="relative z-10 h-full pt-[108px] pb-[18px] px-[20px] flex items-end justify-between">
+              <!-- 124x124 Cover Square -->
+              <div class="relative w-[124px] h-[124px] rounded-[18px] overflow-hidden border border-white/15 shadow-2xl shrink-0 bg-gradient-to-br from-[#8341EF] to-[#2a0a4a] flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-2xl font-black tracking-tighter">AMY</div>
+                  <div class="text-xs text-white/70 font-semibold">WAVE</div>
+                </div>
+                <!-- Button to enter 3D DNA Screen -->
+                <button onclick="switchScreen('dna')" title="3D ДНК Визуализатор" class="absolute top-1.5 right-1.5 px-2 py-1 rounded-full liquid-glass text-xs font-bold flex items-center gap-1">
+                  <span>ДНК</span>
+                </button>
+              </div>
+
+              <!-- Middle: height 124px, margin-left 16px -->
+              <div class="h-[124px] ml-4 flex flex-col justify-end flex-1 min-w-0">
+                <div class="text-[36px] font-black tracking-tighter leading-[0.86] text-white mb-2.5">
+                  Моя<br/>волна
+                </div>
+                <div class="text-xs text-white/60 font-semibold mb-1.5">3 источника</div>
+                <div>
+                  <button onclick="alert('Открывается модалка выбора артистов WaveSeedModalView («Кого будем слушать?»): Kai Angel, 9mice, PHARAOH, Платина, madk1d...')" class="liquid-glass-pill px-3 py-1 rounded-full text-xs font-black tracking-wider text-white">
+                    НАСТРОИТЬ
+                  </button>
+                </div>
+              </div>
+
+              <!-- Right: 56x56 White Circle Play Button -->
+              <button onclick="togglePlayState()" class="w-[56px] h-[56px] rounded-full bg-white text-black flex items-center justify-center shadow-[0_0_32px_rgba(255,255,255,0.3)] active:scale-90 transition shrink-0">
+                <span id="hero-play-icon" class="text-lg font-black ml-0.5">▶</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Expandable Search Dropdown Overlay when Search input is active -->
+          <div id="embedded-search-dropdown" class="hidden mx-3 mb-4 p-3 rounded-3xl liquid-glass">
+            <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-2.5">
+              <span class="px-3 py-1 rounded-full bg-white text-black text-xs font-bold">Все</span>
+              <span class="px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-bold">Треки</span>
+              <span class="px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-bold">Плейлисты</span>
+              <span class="px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-bold">Альбомы</span>
+              <span class="px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-bold">Артисты</span>
+            </div>
+            <div class="space-y-1.5 mt-1">
+              <div onclick="selectTrack('ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14')" class="p-2 rounded-xl hover:bg-white/10 flex items-center justify-between cursor-pointer">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-lg bg-[#8341EF]/40 flex items-center justify-center font-bold text-xs">Д</div>
+                  <div>
+                    <div class="text-xs font-bold text-white">ДИНАСТИЯ <span class="px-1 py-0.5 bg-white/15 rounded text-xs">18+</span></div>
+                    <div class="text-xs text-white/55">VILLIAN, madk1d</div>
+                  </div>
+                </div>
+                <span class="text-xs text-white/45">2:14</span>
+              </div>
+              <div onclick="selectTrack('romantic', 'RUD!N', '1:58')" class="p-2 rounded-xl hover:bg-white/10 flex items-center justify-between cursor-pointer">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-lg bg-pink-500/40 flex items-center justify-center font-bold text-xs">R</div>
+                  <div>
+                    <div class="text-xs font-bold text-white">romantic</div>
+                    <div class="text-xs text-white/55">RUD!N</div>
+                  </div>
+                </div>
+                <span class="text-xs text-white/45">1:58</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seed Chips Row -->
+          <div class="flex gap-2 overflow-x-auto no-scrollbar px-4 pt-2 pb-4">
+            <span class="liquid-glass-pill px-3 py-1 rounded-full text-xs font-semibold text-white/90 shrink-0">✨ Kai Angel</span>
+            <span class="liquid-glass-pill px-3 py-1 rounded-full text-xs font-semibold text-white/90 shrink-0">✨ 9mice</span>
+            <span class="liquid-glass-pill px-3 py-1 rounded-full text-xs font-semibold text-white/90 shrink-0">✨ madk1d</span>
+          </div>
+
+          <!-- 2-Card Grid: История & Любимые треки (<CoverMosaic> h-[80px] rounded-[18px]) -->
+          <div class="grid grid-cols-2 gap-3 px-4 mb-6">
+            <div onclick="alert('Открывается шторка PlayHistorySheetView с историей прослушанных треков')" class="cursor-pointer h-[80px] rounded-[18px] relative overflow-hidden border border-white/10 p-3 flex items-center bg-gradient-to-r from-black via-[#2a0a4a]/80 to-[#8341EF]/40">
+              <div>
+                <div class="text-sm font-black text-white">История</div>
+                <div class="text-xs text-white/65 font-medium">48 треков</div>
+              </div>
+            </div>
+            <div onclick="switchScreen('collection')" class="cursor-pointer h-[80px] rounded-[18px] relative overflow-hidden border border-white/10 p-3 flex items-center bg-gradient-to-r from-black via-[#4c1d95]/80 to-[#A855F7]/40">
+              <div>
+                <div class="text-sm font-black text-white">Любимые треки</div>
+                <div class="text-xs text-white/65 font-medium">124 в коллекции</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- "Для вас" Carousel (140px square cards) -->
+          <div class="px-4 mb-2 flex items-center justify-between">
+            <div>
+              <div class="text-xl font-black text-white">Для вас</div>
+              <div class="text-xs text-white/50">Подобрано алгоритмом Моей волны</div>
+            </div>
+          </div>
+          <div class="flex gap-3.5 overflow-x-auto no-scrollbar px-4 pt-2">
+            <!-- Card 1 -->
+            <div onclick="selectTrack('ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14')" class="w-[140px] shrink-0 cursor-pointer group">
+              <div class="relative w-[140px] h-[140px] rounded-[16px] bg-gradient-to-br from-[#8341EF] via-[#4c1d95] to-black p-3 flex flex-col justify-between border border-white/10">
+                <span class="text-xs font-black uppercase tracking-wider text-white/70">PHONK / RAGE</span>
+                <div class="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center self-end font-black text-xs shadow-lg">▶</div>
+              </div>
+              <div class="text-xs font-bold text-white mt-2 truncate">ДИНАСТИЯ</div>
+              <div class="text-xs text-white/55 truncate">VILLIAN, madk1d</div>
+            </div>
+            <!-- Card 2 -->
+            <div onclick="selectTrack('romantic', 'RUD!N', '1:58')" class="w-[140px] shrink-0 cursor-pointer group">
+              <div class="relative w-[140px] h-[140px] rounded-[16px] bg-gradient-to-br from-pink-600 via-purple-900 to-black p-3 flex flex-col justify-between border border-white/10">
+                <span class="text-xs font-black uppercase tracking-wider text-white/70">HYPERPOP</span>
+                <div class="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center self-end font-black text-xs shadow-lg">▶</div>
+              </div>
+              <div class="text-xs font-bold text-white mt-2 truncate">romantic</div>
+              <div class="text-xs text-white/55 truncate">RUD!N</div>
+            </div>
+            <!-- Card 3 -->
+            <div onclick="selectTrack('LIPSTICK', 'Kai Angel, 9mice', '2:31')" class="w-[140px] shrink-0 cursor-pointer group">
+              <div class="relative w-[140px] h-[140px] rounded-[16px] bg-gradient-to-br from-indigo-600 via-slate-900 to-black p-3 flex flex-col justify-between border border-white/10">
+                <span class="text-xs font-black uppercase tracking-wider text-white/70">VIPERR</span>
+                <div class="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center self-end font-black text-xs shadow-lg">▶</div>
+              </div>
+              <div class="text-xs font-bold text-white mt-2 truncate">LIPSTICK</div>
+              <div class="text-xs text-white/55 truncate">Kai Angel, 9mice</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 2: 3D ДНК ВИЗУАЛИЗАТОР (WaveView.jsx) ==================== -->
+        <div id="screen-dna" class="hidden h-[660px] relative flex flex-col justify-between p-4">
+          <canvas id="full-dna-canvas" width="393" height="660" class="absolute inset-0 pointer-events-none"></canvas>
+
+          <div class="relative z-10 flex items-center justify-between">
+            <button onclick="switchScreen('wave')" class="liquid-glass-pill px-3.5 py-1.5 rounded-full text-xs font-bold text-white">← Назад</button>
+            <span class="liquid-glass-pill px-3 py-1 rounded-full text-xs font-black text-[#d8b4fe] tracking-wider">VIPERR / RAGE</span>
+          </div>
+
+          <!-- Center Morphing 185x185 Pulsing Cover -->
+          <div class="relative z-10 my-auto mx-auto text-center">
+            <div onclick="openFullPlayer(true)" class="cursor-pointer mx-auto w-[180px] h-[180px] rounded-[28px] bg-gradient-to-tr from-[#2a0a4a] via-[#8341EF] to-[#d8b4fe] p-5 flex flex-col justify-end shadow-[0_0_50px_rgba(131,65,239,0.65)] border border-white/20 transition-transform hover:scale-105">
+              <div id="dna-center-title" class="text-lg font-black text-white leading-tight">ДИНАСТИЯ</div>
+              <div id="dna-center-artist" class="text-xs font-semibold text-white/80">VILLIAN, madk1d</div>
+            </div>
+          </div>
+
+          <!-- Bottom DNA Transport Bar -->
+          <div class="relative z-10 flex flex-col items-center gap-3 pb-4">
+            <div onclick="openFullPlayer(true)" class="cursor-pointer liquid-glass-pill px-5 py-2 rounded-full text-center">
+              <div class="text-xs font-bold text-white">Нажмите на обложку для Караоке-текста</div>
+            </div>
+            <div class="flex items-center gap-6">
+              <button class="text-white/60 hover:text-white text-sm">👎</button>
+              <button onclick="prevTrack()" class="text-white text-base font-bold">⏮</button>
+              <button onclick="togglePlayState()" class="w-14 h-14 rounded-full bg-[#8341EF] text-white flex items-center justify-center shadow-[0_0_24px_rgba(131,65,239,0.65)] text-lg font-black">⏯</button>
+              <button onclick="nextTrack()" class="text-white text-base font-bold">⏭</button>
+              <button class="text-[#A855F7] text-base">♥</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 2: ЧАРТЫ ТОП-100 (TrendsChartsView) ==================== -->
+        <div id="screen-trends" class="hidden px-3.5 pt-5">
+          <div class="text-center mb-5">
+            <h2 class="text-4xl font-black tracking-tight text-white">Чарты</h2>
+            <p class="text-xs text-white/55 mt-1">Самые популярные треки прямо сейчас (Яндекс Топ-100 + SoundCloud)</p>
+            <div class="mt-3 flex justify-center gap-2.5">
+              <button onclick="selectTrack('ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14')" class="px-6 py-2.5 rounded-full bg-white text-black text-xs font-black shadow-lg">▶ Слушать</button>
+              <button class="w-9 h-9 rounded-full liquid-glass flex items-center justify-center text-xs">↻</button>
+            </div>
+          </div>
+
+          <!-- Top 100 Rows with #1 Gold, #2 Silver, #3 Bronze Glow -->
+          <div class="space-y-2">
+            <!-- #1 Gold -->
+            <div onclick="selectTrack('ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14')" class="cursor-pointer p-2.5 rounded-2xl bg-[#8341EF]/20 border border-[#8341EF]/40 flex items-center gap-3">
+              <div class="w-7 text-center">
+                <div class="text-base font-black text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.7)]">1</div>
+                <div class="text-xs text-emerald-400 font-bold">▲2</div>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-[#8341EF] to-[#2a0a4a] flex items-center justify-center font-black text-xs shrink-0">1</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold text-[#d8b4fe] truncate">ДИНАСТИЯ</span>
+                  <span class="px-1.5 py-0.5 rounded bg-white/15 text-xs font-bold">18+</span>
+                  <span class="px-1.5 py-0.5 rounded-full bg-white/10 text-xs text-white/60">🎧 1.4 млн</span>
+                </div>
+                <div class="text-xs text-white/60 truncate">VILLIAN, madk1d</div>
+              </div>
+              <span class="text-xs text-[#A855F7]">♥</span>
+              <span class="text-xs text-white/45 font-mono">2:14</span>
+            </div>
+
+            <!-- #2 Silver -->
+            <div onclick="selectTrack('LIPSTICK', 'Kai Angel, 9mice', '2:31')" class="cursor-pointer p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] flex items-center gap-3">
+              <div class="w-7 text-center">
+                <div class="text-base font-black text-slate-300 drop-shadow-[0_0_8px_rgba(203,213,225,0.6)]">2</div>
+                <div class="text-xs text-[#A855F7] font-black">NEW</div>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-slate-900 flex items-center justify-center font-black text-xs shrink-0">2</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold text-white truncate">LIPSTICK</span>
+                  <span class="px-1.5 py-0.5 rounded-full bg-white/10 text-xs text-white/60">🎧 980 тыс</span>
+                </div>
+                <div class="text-xs text-white/60 truncate">Kai Angel, 9mice</div>
+              </div>
+              <span class="text-xs text-white/35">♡</span>
+              <span class="text-xs text-white/45 font-mono">2:31</span>
+            </div>
+
+            <!-- #3 Bronze -->
+            <div onclick="selectTrack('romantic', 'RUD!N', '1:58')" class="cursor-pointer p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] flex items-center gap-3">
+              <div class="w-7 text-center">
+                <div class="text-base font-black text-amber-600 drop-shadow-[0_0_8px_rgba(217,119,6,0.6)]">3</div>
+                <div class="text-xs text-emerald-400 font-bold">▲5</div>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-600 to-purple-950 flex items-center justify-center font-black text-xs shrink-0">3</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold text-white truncate">romantic</span>
+                  <span class="px-1.5 py-0.5 rounded-full bg-white/10 text-xs text-white/60">🎧 820 тыс</span>
+                </div>
+                <div class="text-xs text-white/60 truncate">RUD!N</div>
+              </div>
+              <span class="text-xs text-[#A855F7]">♥</span>
+              <span class="text-xs text-white/45 font-mono">1:58</span>
+            </div>
+
+            <!-- #4 -->
+            <div onclick="selectTrack('Опиум', 'PHARAOH', '2:45')" class="cursor-pointer p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] flex items-center gap-3">
+              <div class="w-7 text-center">
+                <div class="text-sm font-black text-white/65">4</div>
+                <div class="text-xs text-rose-400 font-bold">▼1</div>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-900 to-black flex items-center justify-center font-black text-xs shrink-0">4</div>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-bold text-white truncate">Опиум</div>
+                <div class="text-xs text-white/60 truncate">PHARAOH</div>
+              </div>
+              <span class="text-xs text-white/35">♡</span>
+              <span class="text-xs text-white/45 font-mono">2:45</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB 3: КОЛЛЕКЦИЯ (CollectionView) ==================== -->
+        <div id="screen-collection" class="hidden px-3.5 pt-5">
+          <div class="text-center mb-5">
+            <h2 class="text-4xl font-black tracking-tight text-white">Коллекция</h2>
+            <p class="text-xs text-white/55 mt-1">У вашей музыки есть цвет</p>
+            <button onclick="selectTrack('ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14')" class="mt-3 liquid-glass-pill px-5 py-2 rounded-full text-xs font-bold text-white inline-flex items-center gap-1.5">
+              <span class="text-[#A855F7]">♥</span> Мне нравится (124)
+            </button>
+          </div>
+
+          <!-- Horizontal Snap Pager (5 tracks per page) -->
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-base font-black text-white">Мне нравится</span>
+              <span class="text-xs font-bold text-[#A855F7]">Свайп по 5 треков →</span>
+            </div>
+            <div class="space-y-1.5 bg-white/[0.02] p-2 rounded-2xl border border-white/5">
+              <div onclick="selectTrack('ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14')" class="p-2 rounded-xl bg-white/[0.03] flex items-center justify-between cursor-pointer">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-lg bg-[#8341EF]/40 flex items-center justify-center font-bold text-xs">Д</div>
+                  <div>
+                    <div class="text-xs font-bold text-white">ДИНАСТИЯ</div>
+                    <div class="text-xs text-white/55">VILLIAN, madk1d</div>
+                  </div>
+                </div>
+                <span class="text-xs text-white/45 font-mono">2:14</span>
+              </div>
+              <div onclick="selectTrack('romantic', 'RUD!N', '1:58')" class="p-2 rounded-xl bg-white/[0.03] flex items-center justify-between cursor-pointer">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-lg bg-pink-500/40 flex items-center justify-center font-bold text-xs">R</div>
+                  <div>
+                    <div class="text-xs font-bold text-white">romantic</div>
+                    <div class="text-xs text-white/55">RUD!N</div>
+                  </div>
+                </div>
+                <span class="text-xs text-white/45 font-mono">1:58</span>
+              </div>
+              <div onclick="selectTrack('LIPSTICK', 'Kai Angel, 9mice', '2:31')" class="p-2 rounded-xl bg-white/[0.03] flex items-center justify-between cursor-pointer">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-lg bg-indigo-500/40 flex items-center justify-center font-bold text-xs">L</div>
+                  <div>
+                    <div class="text-xs font-bold text-white">LIPSTICK</div>
+                    <div class="text-xs text-white/55">Kai Angel, 9mice</div>
+                  </div>
+                </div>
+                <span class="text-xs text-white/45 font-mono">2:31</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Мои плейлисты + Импорт из Яндекс Музыки -->
+          <div class="mb-5">
+            <div class="text-base font-black text-white mb-2.5">Мои плейлисты</div>
+            <div class="flex gap-3 overflow-x-auto no-scrollbar">
+              <div onclick="alert('Открывается CreateOrImportPlaylistSheetView: создание своего плейлиста или вставка ссылки music.yandex.ru/users/.../playlists/... с живым прогресс-баром импорта!')" class="w-[132px] shrink-0 cursor-pointer">
+                <div class="w-[132px] h-[132px] rounded-2xl bg-white/[0.04] border border-dashed border-white/20 flex flex-col items-center justify-center gap-1.5 hover:bg-white/[0.08]">
+                  <span class="text-2xl text-[#A855F7]">＋</span>
+                  <span class="text-xs font-bold text-white/80 text-center">Создать или<br/>Импорт Yandex</span>
+                </div>
+                <div class="text-xs font-bold text-white mt-1.5">Добавить</div>
+              </div>
+              <div class="w-[132px] shrink-0 cursor-pointer">
+                <div class="w-[132px] h-[132px] rounded-2xl bg-gradient-to-br from-[#8341EF] to-black p-3 flex flex-col justify-between border border-white/10">
+                  <span class="self-end px-2 py-0.5 rounded-full bg-black/60 text-xs font-bold">28 тр.</span>
+                  <span class="text-sm font-black">Ночной Вайб</span>
+                </div>
+                <div class="text-xs font-bold text-white mt-1.5 truncate">Ночной Вайб</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Любимые исполнители -->
+          <div>
+            <div class="text-base font-black text-white mb-2.5">Любимые исполнители</div>
+            <div class="flex gap-3.5 overflow-x-auto no-scrollbar">
+              <div class="text-center shrink-0">
+                <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-[#8341EF] to-indigo-500 flex items-center justify-center font-black text-lg border border-white/15">KA</div>
+                <div class="text-xs font-bold text-white mt-1.5">Kai Angel</div>
+              </div>
+              <div class="text-center shrink-0">
+                <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-purple-700 to-pink-500 flex items-center justify-center font-black text-lg border border-white/15">9M</div>
+                <div class="text-xs font-bold text-white mt-1.5">9mice</div>
+              </div>
+              <div class="text-center shrink-0">
+                <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-fuchsia-700 to-amber-500 flex items-center justify-center font-black text-lg border border-white/15">PH</div>
+                <div class="text-xs font-bold text-white mt-1.5">PHARAOH</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== FLOATING BOTTOM CONTROLS (.mobile-floating-controls) ==================== -->
+      <!-- Stacked with 10px gap: 1) 64px MobileMiniPlayer, 2) 64px 3-Icon MobileNavDock -->
+      <div id="floating-bottom-chrome" class="absolute left-3 right-3 bottom-3 z-40 flex flex-col gap-[10px]">
+
+        <!-- 1. MobileMiniPlayer (64px height, 20px radius, 52x52 cover, 48x48 white play button) -->
+        <div class="liquid-glass h-[64px] rounded-[20px] pl-[6px] pr-[8px] py-[6px] flex items-center gap-2 relative overflow-hidden">
+          <div onclick="openFullPlayer(true)" class="flex-1 flex items-center gap-2.5 min-w-0 cursor-pointer">
+            <div class="w-[52px] h-[52px] rounded-[14px] bg-gradient-to-br from-[#8341EF] to-[#2a0a4a] flex items-center justify-center font-black text-sm shrink-0 border border-white/15">
+              ♪
+            </div>
+            <div class="min-w-0 flex-1">
+              <div id="mini-title" class="text-[14px] font-bold text-white truncate">ДИНАСТИЯ</div>
+              <div id="mini-artist" class="text-[12px] text-[#a1a1aa] truncate">VILLIAN, madk1d</div>
+            </div>
+          </div>
+          <button onclick="togglePlayState()" class="w-[48px] h-[48px] rounded-full bg-white text-[#0b0b0d] flex items-center justify-center font-black text-base shrink-0 active:scale-90 transition">
+            <span id="mini-play-icon" class="ml-0.5">▶</span>
+          </button>
+          <!-- Subtle bottom progress bar -->
+          <div class="absolute bottom-0 left-3 right-3 h-[2px] bg-white/10">
+            <div class="w-2/5 h-full bg-[#d8b4fe]"></div>
+          </div>
+        </div>
+
+        <!-- 2. MobileNavDock (64px height, 26px radius, 3 icon-only items: Моя волна, Чарты, Коллекция) -->
+        <nav class="liquid-glass h-[64px] rounded-[26px] p-[6px] grid grid-cols-3 relative overflow-hidden">
+          <!-- Diagonal Sheen Sweep -->
+          <div class="dock-sheen absolute top-0 bottom-0 w-1/3 bg-white/10 blur-md pointer-events-none"></div>
+
+          <!-- Moving Active Pill -->
+          <div id="dock-active-pill" class="absolute top-[6px] bottom-[6px] left-[6px] w-[calc((100%-12px)/3)] rounded-[20px] bg-[#3a3a40]/90 border border-white/15 transition-all duration-300 pointer-events-none"></div>
+
+          <!-- Tab 0: Моя волна -->
+          <button onclick="switchScreen('wave')" id="dock-btn-wave" class="relative z-10 flex items-center justify-center text-[#a855f7] active:scale-95 transition">
+            <svg class="w-[27px] h-[27px]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12h3l3-7 4 14 3-7h5"/></svg>
+          </button>
+
+          <!-- Tab 1: Чарты -->
+          <button onclick="switchScreen('trends')" id="dock-btn-trends" class="relative z-10 flex items-center justify-center text-white/65 active:scale-95 transition">
+            <svg class="w-[25px] h-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
+          </button>
+
+          <!-- Tab 2: Коллекция -->
+          <button onclick="switchScreen('collection')" id="dock-btn-collection" class="relative z-10 flex items-center justify-center text-white/65 active:scale-95 transition">
+            <svg class="w-[25px] h-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </button>
+        </nav>
+      </div>
+
+      <!-- ==================== FULL PLAYER OVERLAY (FullPlayerOverlayView) ==================== -->
+      <div id="full-player-overlay" class="hidden absolute inset-0 z-50 bg-[#090909] flex flex-col justify-between p-5 overflow-hidden">
+        <!-- Fluid Mesh Palette Orbs -->
+        <div class="absolute -top-16 -left-16 w-80 h-80 rounded-full bg-[#8341EF]/45 blur-[75px] orb-1 pointer-events-none"></div>
+        <div class="absolute top-1/3 -right-16 w-72 h-72 rounded-full bg-[#d8b4fe]/30 blur-[80px] orb-2 pointer-events-none"></div>
+        <div class="absolute bottom-0 inset-x-0 h-64 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none"></div>
+
+        <!-- Top Bar: Drag Pill + Close + Segmented ("Песня" | "Текст") + Settings -->
+        <div class="relative z-10">
+          <div class="w-10 h-1 rounded-full bg-white/30 mx-auto mb-3"></div>
+          <div class="flex items-center justify-between">
+            <button onclick="openFullPlayer(false)" class="w-10 h-10 rounded-full liquid-glass flex items-center justify-center text-sm font-bold">⌄</button>
+            <div class="liquid-glass-pill p-1 rounded-full flex items-center gap-1">
+              <button onclick="setPlayerStage('song')" id="seg-song" class="px-4 py-1.5 rounded-full text-xs font-bold bg-white text-black transition">Песня</button>
+              <button onclick="setPlayerStage('lyrics')" id="seg-lyrics" class="px-4 py-1.5 rounded-full text-xs font-bold text-white/75 transition">Текст</button>
+            </div>
+            <button onclick="toggleEqualizer(true)" title="Эквалайзер" class="w-10 h-10 rounded-full liquid-glass flex items-center justify-center text-xs font-bold">EQ</button>
+          </div>
+        </div>
+
+        <!-- Center Stage: Cover Art vs Synced Karaoke Lyrics -->
+        <div class="relative z-10 my-auto">
+          <!-- Stage A: Cover -->
+          <div id="player-stage-song" onclick="setPlayerStage('lyrics')" class="cursor-pointer mx-auto w-[250px] h-[250px] rounded-[26px] bg-gradient-to-tr from-[#2a0a4a] via-[#8341EF] to-[#d8b4fe] p-6 flex flex-col justify-between shadow-[0_18px_50px_rgba(131,65,239,0.55)] border border-white/20">
+            <span class="text-xs font-black tracking-widest text-white/75">AMY LIQUID GLASS</span>
+            <div>
+              <div class="text-2xl font-black text-white">ДИНАСТИЯ</div>
+              <div class="text-xs text-white/80 mt-1">Нажмите на обложку для текста →</div>
+            </div>
+          </div>
+
+          <!-- Stage B: Synced Lyrics (Blur / Scale / Braccato Word Sweep) -->
+          <div id="player-stage-lyrics" class="hidden space-y-4 px-2 py-2 max-h-[320px] overflow-y-auto no-scrollbar">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-0.5 rounded-full bg-white/10 text-xs text-white/60 font-bold">Источник: LRCLib • Braccato</span>
+              <span class="text-xs text-[#d8b4fe] font-bold">Сдвиг: 0 мс</span>
+            </div>
+            <p class="text-lg font-black text-white/30 blur-[2px]">Ночной город зажигает огни</p>
+            <p class="text-xl font-black text-white/45 blur-[1px]">Мы летим сквозь фиолетовый дым</p>
+            <p class="text-2xl font-black text-white scale-[1.03] origin-left drop-shadow-[0_0_16px_rgba(216,180,254,0.65)]">
+              <span class="text-white">Включай</span> <span class="text-white">свой</span> <span class="text-[#d8b4fe]">вайб</span> <span class="text-white/40">на полную</span>
+            </p>
+            <p class="text-xl font-black text-white/40 blur-[1.5px]">У твоей музыки есть свой цвет</p>
+            <p class="text-lg font-black text-white/25 blur-[3px]">И этот ритм не остановить</p>
+          </div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="relative z-10 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div id="full-title" class="text-xl font-black text-white">ДИНАСТИЯ</div>
+              <div id="full-artist" class="text-xs font-semibold text-white/70 mt-0.5">VILLIAN, madk1d</div>
+            </div>
+            <button class="w-9 h-9 rounded-full liquid-glass flex items-center justify-center text-xs">•••</button>
+          </div>
+
+          <!-- Seek Bar -->
+          <div>
+            <div class="h-1.5 rounded-full bg-white/15 overflow-hidden">
+              <div class="w-2/5 h-full bg-[#d8b4fe] rounded-full shadow-[0_0_12px_#9b5cff]"></div>
+            </div>
+            <div class="flex justify-between text-xs text-white/50 font-mono mt-1">
+              <span>0:54</span>
+              <span>2:14</span>
+            </div>
+          </div>
+
+          <!-- Main Transport Row -->
+          <div class="flex items-center justify-between px-2">
+            <button class="text-white/60 text-base">👎</button>
+            <button onclick="prevTrack()" class="text-white text-xl font-bold">⏮</button>
+            <button onclick="togglePlayState()" class="w-16 h-16 rounded-full bg-[#8341EF] text-white flex items-center justify-center text-xl font-black shadow-[0_0_28px_rgba(131,65,239,0.65)]">⏯</button>
+            <button onclick="nextTrack()" class="text-white text-xl font-bold">⏭</button>
+            <button class="text-[#A855F7] text-xl">♥</button>
+          </div>
+
+          <!-- Bottom Utility Row: Repeat, Equalizer, AirPlay, Queue, Shuffle -->
+          <div class="flex items-center justify-between px-3 pt-1 text-xs font-bold text-white/60">
+            <button class="hover:text-white">🔁</button>
+            <button onclick="toggleEqualizer(true)" class="text-[#d8b4fe]">🎚 EQ</button>
+            <button class="hover:text-white">📡 AirPlay</button>
+            <button onclick="setPlayerStage('lyrics')" class="hover:text-white">💬 Текст</button>
+            <button class="hover:text-white">🔀</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 10-BAND EQUALIZER BOTTOM SHEET ==================== -->
+      <div id="eq-sheet" class="hidden absolute inset-x-0 bottom-0 z-50 h-[470px] rounded-t-[32px] liquid-glass p-5 flex flex-col justify-between">
+        <div>
+          <div class="w-10 h-1 rounded-full bg-white/30 mx-auto mb-3"></div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-base font-black text-white">Эквалайзер (10 полос AVAudioUnitEQ)</span>
+            <button onclick="toggleEqualizer(false)" class="text-xs font-bold text-[#d8b4fe]">Готово</button>
+          </div>
+          <!-- Preset Pills -->
+          <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-3">
+            <button onclick="setEqPreset([8,6,4,2,0,0,0,0,0,0])" class="px-3 py-1 rounded-full bg-white text-black text-xs font-bold shrink-0">Усиление баса</button>
+            <button onclick="setEqPreset([0,0,0,0,0,0,0,0,0,0])" class="px-3 py-1 rounded-full bg-white/10 text-white text-xs font-bold shrink-0">Сброс</button>
+            <button onclick="setEqPreset([7,5,3,0,-2,2,4,6,5,4])" class="px-3 py-1 rounded-full bg-white/10 text-white text-xs font-bold shrink-0">Электроника</button>
+            <button onclick="setEqPreset([-2,-1,1,3,5,4,3,1,0,-1])" class="px-3 py-1 rounded-full bg-white/10 text-white text-xs font-bold shrink-0">Вокал</button>
+          </div>
+          <!-- 10 Vertical Sliders -->
+          <div id="eq-bars-container" class="grid grid-cols-10 gap-1.5 h-[190px] items-end pt-4 px-1"></div>
+        </div>
+        <div class="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+          <div>
+            <div class="text-xs font-bold text-white">Studio Volume Normalization</div>
+            <div class="text-xs text-white/50">DynamicsCompressor (-24dB, 12:1)</div>
+          </div>
+          <span class="px-2.5 py-1 rounded-full bg-[#8341EF] text-xs font-bold">ВКЛ</span>
+        </div>
+      </div>
+
+      <!-- ==================== SETTINGS MODAL SHEET ==================== -->
+      <div id="settings-sheet" class="hidden absolute inset-x-0 bottom-0 z-50 h-[520px] rounded-t-[32px] liquid-glass p-5 flex flex-col justify-between">
+        <div>
+          <div class="w-10 h-1 rounded-full bg-white/30 mx-auto mb-3"></div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-base font-black text-white">Настройки и Темы (6 пресетов)</span>
+            <button onclick="toggleSettingsModal(false)" class="text-xs font-bold text-[#d8b4fe]">Готово</button>
+          </div>
+          <div class="space-y-3">
+            <div class="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-[#8341EF] to-[#A855F7] flex items-center justify-center font-black">A</div>
+              <div>
+                <div class="text-sm font-black text-white">Amy Listener</div>
+                <div class="text-xs text-white/60">14ч 20м прослушано • 124 любимых</div>
+              </div>
+            </div>
+            <div class="text-xs font-bold text-white/70">Цветовая тема:</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="p-2.5 rounded-xl bg-[#8341EF]/25 border border-[#8341EF] text-xs font-bold flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#8341EF]"></span> Amy Purple</div>
+              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#1DB954]"></span> Dotify Green</div>
+              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#FF007F]"></span> Cyberpunk</div>
+              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#3B82F6]"></span> Midnight</div>
+            </div>
+            <div class="text-xs font-bold text-white/70 pt-1">Качество потока и переходы:</div>
+            <div class="p-3 rounded-2xl bg-white/5 border border-white/10 text-xs space-y-1.5">
+              <div class="flex justify-between"><span>Качество звука:</span><span class="font-bold text-[#d8b4fe]">1411 kbps 💎 (HQ)</span></div>
+              <div class="flex justify-between"><span>Crossfade (2x AVPlayer):</span><span class="font-bold text-[#d8b4fe]">4 сек</span></div>
+              <div class="flex justify-between"><span>Dynamic Island Live Activity:</span><span class="font-bold text-emerald-400">Активно</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right-Side Architecture Notes -->
+    <div class="flex-1 max-w-md space-y-4">
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
+        <h3 class="text-sm font-bold text-[var(--foreground)] mb-2">Что именно адаптировано под телефон:</h3>
+        <ul class="text-xs text-[var(--muted-foreground)] space-y-2 leading-relaxed">
+          <li>• <b>Нижний док (3 иконки без текста)</b>: «Моя волна», «Чарты», «Коллекция» — высота <code>64pt</code>, скругление <code>26pt</code>, плавающая капсула активного таба и блик <code>nav-dock-sheen</code>.</li>
+          <li>• <b>Мини-плеер над доком (отступ 10pt)</b>: высота <code>64pt</code>, обложка <code>52×52pt</code>, кнопка Play <code>48×48pt</code>, свайпы влево/вправо для смены трека.</li>
+          <li>• <b>Поиск внутри шапки «Моей волны»</b>: не занимает место в нижнем баре, а расположен прямо вверху <code>280pt</code> Hero-баннера с выпадающими фильтрами.</li>
+          <li>• <b>Dynamic Island (ActivityKit)</b>: заменяет десктопный <code>GameOverlay.jsx</code> в верхней «чёлке» iPhone и на экране блокировки iOS 26.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let isPlaying = false;
+    const eqFreqs = ["60","170","310","600","1K","3K","6K","12K","14K","16K"];
+    let currentEq = [8, 6, 4, 2, 0, 0, 0, 0, 0, 0];
+
+    function switchScreen(tab) {
+      ['wave', 'dna', 'trends', 'collection'].forEach(id => {
+        document.getElementById('screen-' + id).classList.add('hidden');
+      });
+      document.getElementById('screen-' + tab).classList.remove('hidden');
+
+      const pill = document.getElementById('dock-active-pill');
+      const btnWave = document.getElementById('dock-btn-wave');
+      const btnTrends = document.getElementById('dock-btn-trends');
+      const btnCol = document.getElementById('dock-btn-collection');
+
+      [btnWave, btnTrends, btnCol].forEach(b => {
+        b.classList.remove('text-[#a855f7]');
+        b.classList.add('text-white/65');
+      });
+
+      if (tab === 'wave' || tab === 'dna') {
+        pill.style.left = '6px';
+        btnWave.classList.add('text-[#a855f7]');
+        btnWave.classList.remove('text-white/65');
+      } else if (tab === 'trends') {
+        pill.style.left = 'calc(6px + (100% - 12px) / 3)';
+        btnTrends.classList.add('text-[#a855f7]');
+        btnTrends.classList.remove('text-white/65');
+      } else if (tab === 'collection') {
+        pill.style.left = 'calc(6px + 2 * (100% - 12px) / 3)';
+        btnCol.classList.add('text-[#a855f7]');
+        btnCol.classList.remove('text-white/65');
+      }
+    }
+
+    function togglePlayState() {
+      isPlaying = !isPlaying;
+      const icon = isPlaying ? '⏸' : '▶';
+      document.getElementById('mini-play-icon').textContent = icon;
+      document.getElementById('hero-play-icon').textContent = icon;
+    }
+
+    function selectTrack(title, artist, dur) {
+      document.getElementById('mini-title').textContent = title;
+      document.getElementById('mini-artist').textContent = artist;
+      document.getElementById('full-title').textContent = title;
+      document.getElementById('full-artist').textContent = artist;
+      document.getElementById('dna-center-title').textContent = title;
+      document.getElementById('dna-center-artist').textContent = artist;
+      document.getElementById('island-title').textContent = title + ' — ' + artist;
+      isPlaying = true;
+      document.getElementById('mini-play-icon').textContent = '⏸';
+      document.getElementById('hero-play-icon').textContent = '⏸';
+      toggleEmbeddedSearch(false);
+    }
+
+    const sampleTracks = [
+      ['ДИНАСТИЯ', 'VILLIAN, madk1d', '2:14'],
+      ['romantic', 'RUD!N', '1:58'],
+      ['LIPSTICK', 'Kai Angel, 9mice', '2:31']
+    ];
+    let trackIdx = 0;
+    function nextTrack() {
+      trackIdx = (trackIdx + 1) % sampleTracks.length;
+      selectTrack(...sampleTracks[trackIdx]);
+    }
+    function prevTrack() {
+      trackIdx = (trackIdx - 1 + sampleTracks.length) % sampleTracks.length;
+      selectTrack(...sampleTracks[trackIdx]);
+    }
+
+    function openFullPlayer(open) {
+      const el = document.getElementById('full-player-overlay');
+      if (open) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+
+    function setPlayerStage(mode) {
+      const sSong = document.getElementById('player-stage-song');
+      const sLyr = document.getElementById('player-stage-lyrics');
+      const bSong = document.getElementById('seg-song');
+      const bLyr = document.getElementById('seg-lyrics');
+      if (mode === 'song') {
+        sSong.classList.remove('hidden');
+        sLyr.classList.add('hidden');
+        bSong.className = 'px-4 py-1.5 rounded-full text-xs font-bold bg-white text-black transition';
+        bLyr.className = 'px-4 py-1.5 rounded-full text-xs font-bold text-white/75 transition';
+      } else {
+        sSong.classList.add('hidden');
+        sLyr.classList.remove('hidden');
+        bLyr.className = 'px-4 py-1.5 rounded-full text-xs font-bold bg-white text-black transition';
+        bSong.className = 'px-4 py-1.5 rounded-full text-xs font-bold text-white/75 transition';
+      }
+    }
+
+    function toggleEmbeddedSearch(show) {
+      const dd = document.getElementById('embedded-search-dropdown');
+      const clr = document.getElementById('search-clear-btn');
+      if (show) {
+        dd.classList.remove('hidden');
+        clr.classList.remove('hidden');
+      } else {
+        dd.classList.add('hidden');
+        clr.classList.add('hidden');
+        document.getElementById('embedded-search-input').value = '';
+      }
+    }
+
+    function filterEmbeddedSearch(val) {
+      toggleEmbeddedSearch(true);
+    }
+
+    function toggleEqualizer(show) {
+      const el = document.getElementById('eq-sheet');
+      if (show) {
+        el.classList.remove('hidden');
+        renderEqBars();
+      } else {
+        el.classList.add('hidden');
+      }
+    }
+
+    function toggleSettingsModal(show) {
+      const el = document.getElementById('settings-sheet');
+      if (show) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+
+    function setEqPreset(gains) {
+      currentEq = gains;
+      renderEqBars();
+    }
+
+    function renderEqBars() {
+      const container = document.getElementById('eq-bars-container');
+      container.innerHTML = '';
+      currentEq.forEach((db, i) => {
+        const pct = Math.round(((db + 12) / 24) * 100);
+        const col = document.createElement('div');
+        col.className = 'flex flex-col items-center gap-1.5 h-full justify-end';
+        col.innerHTML = `
+          <span class="text-xs font-mono text-[#d8b4fe]">${db > 0 ? '+'+db : db}</span>
+          <div class="w-2 flex-1 bg-white/10 rounded-full flex items-end overflow-hidden">
+            <div style="height:${pct}%" class="w-full bg-gradient-to-t from-[#8341EF] to-[#d8b4fe] rounded-full"></div>
+          </div>
+          <span class="text-xs text-white/55 font-bold">${eqFreqs[i]}</span>
+        `;
+        container.appendChild(col);
+      });
+    }
+
+    // Animate 3D DNA Wave on Hero & Full DNA Screen
+    let phase = 0;
+    function drawDNA(canvasId, midYRatio, ampBase) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const midY = h * midYRatio;
+      const amp = ampBase * (isPlaying ? 1.28 : 0.75);
+      const rungs = 24;
+
+      for (let i = 0; i < rungs; i++) {
+        const x = (i / (rungs - 1)) * w;
+        const angle = (i / rungs) * Math.PI * 3 + phase;
+        const y1 = midY + Math.sin(angle) * amp;
+        const y2 = midY + Math.sin(angle + Math.PI) * amp;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y1);
+        ctx.lineTo(x, y2);
+        ctx.strokeStyle = 'rgba(216, 180, 254, 0.28)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      [0, Math.PI].forEach((offset, idx) => {
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 4) {
+          const angle = (x / w) * Math.PI * 3 + phase + offset;
+          const y = midY + Math.sin(angle) * amp;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = idx === 0 ? '#d8b4fe' : '#8341EF';
+        ctx.lineWidth = isPlaying ? 5 : 3.5;
+        ctx.stroke();
+      });
+    }
+
+    function animateLoop() {
+      phase += isPlaying ? 0.065 : 0.022;
+      drawDNA('hero-wave-canvas', 0.52, 34);
+      drawDNA('full-dna-canvas', 0.46, 56);
+      requestAnimationFrame(animateLoop);
+    }
+    animateLoop();
+  </script>
+</body>
+</html>

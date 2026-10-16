@@ -1,0 +1,23 @@
+# Xcode
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# Binary outputs & Archives
+*.ipa
+*.xcarchive
+*.dSYM.zip
+*.dSYM
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Temporary / backups
+antigravity-chat-backup/

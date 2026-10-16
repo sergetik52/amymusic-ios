@@ -1,0 +1,562 @@
+import SwiftUI
+import PhotosUI
+
+// MARK: - Settings, Profile, Audio & Integrations + Real Photo Avatar
+// Port of src/components/SettingsView.jsx, ProfileSettingsModal & src/components/AvatarCropperModal.jsx
+
+public extension UIImage {
+    static func from(base64OrDataUrl: String?) -> UIImage? {
+        guard let string = base64OrDataUrl, !string.isEmpty else { return nil }
+        let base64String: String
+        if let commaIndex = string.firstIndex(of: ",") {
+            base64String = String(string[string.index(after: commaIndex)...])
+        } else {
+            base64String = string
+        }
+        guard let data = Data(base64Encoded: base64String, options: [.ignoreUnknownCharacters]) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+}
+
+public struct ProfileAvatarView: View {
+    public var avatarDataUrl: String?
+    public var displayName: String
+    public var size: CGFloat
+    public var primaryHex: String = "#FFFFFF"
+    public var secondaryHex: String = "#E4E4E7"
+
+    public init(
+        avatarDataUrl: String?,
+        displayName: String,
+        size: CGFloat,
+        primaryHex: String = "#FFFFFF",
+        secondaryHex: String = "#E4E4E7"
+    ) {
+        self.avatarDataUrl = avatarDataUrl
+        self.displayName = displayName
+        self.size = size
+        self.primaryHex = primaryHex
+        self.secondaryHex = secondaryHex
+    }
+
+    public var body: some View {
+        Group {
+            if let avatar = UIImage.from(base64OrDataUrl: avatarDataUrl) {
+                Image(uiImage: avatar)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: primaryHex), Color(hex: secondaryHex)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: size, height: size)
+
+                    Text(String(displayName.prefix(1)).uppercased())
+                        .font(.system(size: size * 0.42, weight: .black))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .overlay {
+            Circle().strokeBorder(.white.opacity(0.18), lineWidth: 1)
+        }
+    }
+}
+
+public enum SettingsSectionTab: String, CaseIterable, Identifiable {
+    case profile = "Профиль"
+    case audio = "Аудио"
+    case integrations = "Интеграции"
+
+    public var id: String { rawValue }
+}
+
+public struct SettingsAndProfileView: View {
+    @Bindable var player: AudioPlayerManager
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var activeSection: SettingsSectionTab = .profile
+    @State private var isAvatarCropperOpen: Bool = false
+
+    public var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.amyBackground.ignoresSafeArea()
+
+                VStack(spacing: 16) {
+                    // Top Pill Tabs
+                    HStack(spacing: 8) {
+                        ForEach(SettingsSectionTab.allCases) { tab in
+                            let active = activeSection == tab
+                            Button {
+                                UISelectionFeedbackGenerator().selectionChanged()
+                                withAnimation(.spring(duration: 0.25)) {
+                                    activeSection = tab
+                                }
+                            } label: {
+                                Text(tab.rawValue)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(active ? .black : .white.opacity(0.8))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(active ? .white : .white.opacity(0.07), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 20) {
+                            switch activeSection {
+                            case .profile:
+                                profileTabContent
+                            case .audio:
+                                audioTabContent
+                            case .integrations:
+                                integrationsTabContent
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 50)
+                    }
+                }
+            }
+            .navigationTitle("Настройки")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") { dismiss() }
+                        .fontWeight(.bold)
+                }
+            }
+            .sheet(isPresented: $isAvatarCropperOpen) {
+                AvatarCropperSheetView(player: player)
+            }
+        }
+    }
+
+    // MARK: - 1. Profile Tab
+
+    private var profileTabContent: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 16) {
+                Button {
+                    isAvatarCropperOpen = true
+                } label: {
+                    ZStack(alignment: .bottomTrailing) {
+                        ProfileAvatarView(
+                            avatarDataUrl: player.settings.avatarDataUrl,
+                            displayName: player.settings.displayName,
+                            size: 104,
+                            primaryHex: player.settings.themePreset.primaryHex,
+                            secondaryHex: player.settings.themePreset.secondaryHex
+                        )
+
+                        Image(systemName: "camera.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.white)
+                            .background(Circle().fill(.black))
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if player.settings.avatarDataUrl != nil {
+                    Button(role: .destructive) {
+                        player.settings.avatarDataUrl = nil
+                        player.persistState()
+                    } label: {
+                        Label("Удалить фото", systemImage: "trash")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.red.opacity(0.85))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Отображаемое имя")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.55))
+
+                    TextField("Имя профиля", text: $player.settings.displayName)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(13)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+                        .onChange(of: player.settings.displayName) { _, _ in
+                            player.persistState()
+                        }
+
+                    Text("О себе")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.55))
+
+                    TextField("У вашей музыки есть цвет", text: $player.settings.bio)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(13)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+                        .onChange(of: player.settings.bio) { _, _ in
+                            player.persistState()
+                        }
+                }
+            }
+            .padding(20)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            // Listening Statistics Card
+            HStack(spacing: 14) {
+                StatPillCard(
+                    title: "Прослушано",
+                    value: "\(player.totalListenedSeconds / 3600)ч \((player.totalListenedSeconds % 3600) / 60)м",
+                    icon: "headphones"
+                )
+                StatPillCard(
+                    title: "Любимые",
+                    value: "\(player.likedTracks.count) тр.",
+                    icon: "heart.fill"
+                )
+                StatPillCard(
+                    title: "История",
+                    value: "\(player.playHistory.count) тр.",
+                    icon: "clock.fill"
+                )
+            }
+        }
+    }
+
+    // MARK: - 2. Audio Tab (192 / 256 / 320 / 1411 kbps + Crossfade)
+
+    private var audioTabContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Качество аудиопотока")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(.white)
+
+                ForEach(AudioQualityTier.allCases) { tier in
+                    let active = player.settings.audioQuality == tier
+                    Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        player.settings.audioQuality = tier
+                        player.persistState()
+                    } label: {
+                        HStack {
+                            Text(tier.title)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Image(systemName: active ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(active ? .white : .white.opacity(0.35))
+                        }
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(active ? Color.white.opacity(0.18) : .white.opacity(0.05))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(18)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle("Плавный переход (Crossfade)", isOn: $player.settings.crossfadeEnabled)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .tint(.white)
+                    .onChange(of: player.settings.crossfadeEnabled) { _, _ in
+                        player.persistState()
+                    }
+
+                if player.settings.crossfadeEnabled {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Длительность перехода")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.65))
+                            Spacer()
+                            Text("\(Int(player.settings.crossfadeSeconds)) сек")
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white)
+                        }
+                        Slider(value: $player.settings.crossfadeSeconds, in: 1...12, step: 1)
+                            .tint(.white)
+                            .onChange(of: player.settings.crossfadeSeconds) { _, _ in
+                                player.persistState()
+                            }
+                    }
+                }
+
+                Toggle("Воспроизведение без пауз (Gapless)", isOn: $player.settings.gaplessPlayback)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .tint(.white)
+                    .onChange(of: player.settings.gaplessPlayback) { _, _ in
+                        player.persistState()
+                    }
+
+                Toggle("Нормализация громкости", isOn: $player.settings.volumeNormalization)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .tint(.white)
+                    .onChange(of: player.settings.volumeNormalization) { _, _ in
+                        player.persistState()
+                    }
+            }
+            .padding(18)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
+
+    // MARK: - 3. Integrations / Developer Tab
+
+    private var integrationsTabContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("SoundCloud API v2 & Yandex Music")
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(.white)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SoundCloud Client ID")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+                TextField("Client ID", text: $player.settings.soundCloudClientId)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .padding(12)
+                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .onChange(of: player.settings.soundCloudClientId) { _, _ in
+                        player.persistState()
+                    }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Yandex Music OAuth Token (опционально для Персональной Ротор-волны)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+                SecureField("y0_AgAAAA...", text: $player.settings.yandexOAuthToken)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .onChange(of: player.settings.yandexOAuthToken) { _, _ in
+                        player.persistState()
+                    }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("HTTP Прокси (через запятую)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+                TextField("ip:port, ip:port", text: $player.settings.customHttpProxies)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .padding(12)
+                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .onChange(of: player.settings.customHttpProxies) { _, _ in
+                        player.persistState()
+                    }
+            }
+        }
+        .padding(18)
+        .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
+private struct StatPillCard: View {
+    var title: String
+    var value: String
+    var icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+            Text(value)
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+// MARK: - Interactive Circular Pan-and-Zoom Avatar Cropper (Port of AvatarCropperModal.jsx)
+
+@MainActor
+public struct AvatarCropperSheetView: View {
+    @Bindable var player: AudioPlayerManager
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedItem: PhotosPickerItem? = nil
+    @State private var selectedImage: UIImage? = nil
+    @State private var zoomScale: CGFloat = 1.0
+    @State private var panOffset: CGSize = .zero
+    @State private var dragCurrent: CGSize = .zero
+
+    public var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.amyBackground.ignoresSafeArea()
+
+                VStack(spacing: 24) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(.white.opacity(0.05))
+                            .frame(width: 280, height: 280)
+
+                        if let selectedImage {
+                            Image(uiImage: selectedImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 248, height: 248)
+                                .scaleEffect(zoomScale)
+                                .offset(x: panOffset.width + dragCurrent.width, y: panOffset.height + dragCurrent.height)
+                                .clipShape(Circle())
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { val in
+                                            dragCurrent = val.translation
+                                        }
+                                        .onEnded { val in
+                                            panOffset.width += val.translation.width
+                                            panOffset.height += val.translation.height
+                                            dragCurrent = .zero
+                                        }
+                                )
+                        } else {
+                            Circle()
+                                .strokeBorder(.white.opacity(0.25), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                                .frame(width: 248, height: 248)
+                                .overlay {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "photo.badge.plus")
+                                            .font(.system(size: 36))
+                                            .foregroundStyle(.white.opacity(0.5))
+                                        Text("Выберите фото")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundStyle(.white.opacity(0.6))
+                                    }
+                                }
+                        }
+                    }
+
+                    if selectedImage != nil {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text("Масштаб")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.6))
+                                Spacer()
+                                Text("\(Int(zoomScale * 100))%")
+                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(.white)
+                            }
+                            Slider(value: $zoomScale, in: 0.5...3.0)
+                                .tint(.white)
+                        }
+                        .padding(.horizontal, 28)
+                    }
+
+                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                        Label(selectedImage == nil ? "Выбрать фото из галереи" : "Выбрать другое фото", systemImage: "photo.on.rectangle")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    }
+                    .amyLiquidGlass(in: Capsule(), tint: .white, tintOpacity: 0.2)
+                    .padding(.horizontal, 28)
+                }
+            }
+            .navigationTitle("Фото профиля")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Сохранить") {
+                        saveCroppedAvatar()
+                    }
+                    .fontWeight(.bold)
+                    .disabled(selectedImage == nil)
+                }
+            }
+            .onChange(of: selectedItem) { _, newItem in
+                guard let newItem else { return }
+                Task {
+                    if let data = try? await newItem.loadTransferable(type: Data.self),
+                       let img = UIImage(data: data) {
+                        selectedImage = img
+                        zoomScale = 1.0
+                        panOffset = .zero
+                        dragCurrent = .zero
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveCroppedAvatar() {
+        guard let source = selectedImage else {
+            dismiss()
+            return
+        }
+        let outputSize = CGSize(width: 320, height: 320)
+        let renderer = UIGraphicsImageRenderer(size: outputSize)
+        let rendered = renderer.image { ctx in
+            let center = CGPoint(x: outputSize.width / 2, y: outputSize.height / 2)
+            let previewDim: CGFloat = 248
+            let factor = outputSize.width / previewDim
+
+            let aspectW = source.size.width
+            let aspectH = source.size.height
+            let baseScale = previewDim / min(aspectW, aspectH)
+
+            let targetW = aspectW * baseScale * zoomScale * factor
+            let targetH = aspectH * baseScale * zoomScale * factor
+
+            let finalOffsetX = (panOffset.width + dragCurrent.width) * factor
+            let finalOffsetY = (panOffset.height + dragCurrent.height) * factor
+
+            let originX = center.x - targetW / 2 + finalOffsetX
+            let originY = center.y - targetH / 2 + finalOffsetY
+
+            ctx.cgContext.addEllipse(in: CGRect(origin: .zero, size: outputSize))
+            ctx.cgContext.clip()
+
+            source.draw(in: CGRect(x: originX, y: originY, width: targetW, height: targetH))
+        }
+
+        if let jpegData = rendered.jpegData(compressionQuality: 0.85) {
+            let base64 = jpegData.base64EncodedString()
+            player.settings.avatarDataUrl = "data:image/jpeg;base64,\(base64)"
+            player.persistState()
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        dismiss()
+    }
+}
