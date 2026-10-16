@@ -233,7 +233,7 @@ public struct CollectionView: View {
                         }
                     }
 
-                    Spacer(minLength: 184)
+                    Spacer(minLength: 24)
                 }
             }
         }

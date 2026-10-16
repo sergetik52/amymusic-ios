@@ -179,8 +179,8 @@ public struct HomeWaveView: View {
                             }
                         }
 
-                        // Mobile bottom padding for floating mini-player (64pt) + dock (64pt) + safe-bottom
-                        Spacer(minLength: 184)
+                        // Clean bottom padding above floating mini-player and dock
+                        Spacer(minLength: 24)
                     }
                 }
                 .scrollDisabled(true)

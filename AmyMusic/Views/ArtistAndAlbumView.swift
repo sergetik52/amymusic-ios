@@ -23,38 +23,40 @@ public struct ArtistDetailPageView: View {
         let scenes = UIApplication.shared.connectedScenes
         let windowScene = scenes.first as? UIWindowScene
         let window = windowScene?.windows.first
-        return max(window?.safeAreaInsets.top ?? 48, 48)
+        return max(window?.safeAreaInsets.top ?? 54, 54)
     }
 
     public var body: some View {
         ZStack(alignment: .top) {
-            // Full-screen ambient backdrop (strictly bounded so it never expands or crashes layout)
+            // Full-screen ambient backdrop (covers entire screen seamlessly under status bar and Dynamic Island as one block)
             ZStack {
                 Color.amyBackground
 
                 if let profile {
-                    GeometryReader { geo in
+                    ZStack {
                         AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
                             img.resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: geo.size.width, height: geo.size.height)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .clipped()
                         } placeholder: {
                             Color.clear
                         }
-                        .blur(radius: 54)
-                        .opacity(0.32)
+                        .blur(radius: 60)
+                        .opacity(0.35)
 
                         LinearGradient(
                             colors: [
-                                Color.black.opacity(0.25),
-                                Color.amyBackground.opacity(0.65),
-                                Color.amyBackground.opacity(0.90)
+                                Color.black.opacity(0.20),
+                                Color.amyBackground.opacity(0.60),
+                                Color.amyBackground.opacity(0.92)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                 }
             }
             .ignoresSafeArea()
@@ -70,8 +72,8 @@ public struct ArtistDetailPageView: View {
             } else if let profile {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
-                        // Compact top spacing so avatar starts right under top bar without huge empty space
-                        Spacer().frame(height: 8)
+                        // Spacing so avatar starts smoothly below the floating back button and top safe area
+                        Spacer().frame(height: topSafeInset + 44)
                             // Artist Hero Banner (Adaptive across iPhone 11 to 17 Pro Max)
                             VStack(spacing: 12) {
                                 let isCompact = UIScreen.main.bounds.width < 380
@@ -402,9 +404,10 @@ public struct ArtistDetailPageView: View {
                 Spacer()
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)
+            .padding(.top, topSafeInset + 6)
             .zIndex(100)
         }
+        .ignoresSafeArea(edges: .top)
         .task {
             isLoading = true
             profile = await SoundCloudService.shared.fetchArtistProfile(artistId: artistId)

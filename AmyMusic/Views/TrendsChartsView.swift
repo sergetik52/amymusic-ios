@@ -88,7 +88,7 @@ public struct TrendsChartsView: View {
                         .padding(.horizontal, 14)
                     }
 
-                    Spacer(minLength: 184)
+                    Spacer(minLength: 24)
                 }
             }
         }
