@@ -56,12 +56,93 @@ public struct RootTabView: View {
     }
 
     public var body: some View {
+        if #available(iOS 26.0, *) {
+            appleNativeLiquidGlassTabView
+        } else {
+            legacyLiquidGlassTabView
+        }
+    }
+
+    // MARK: - Authentic Apple Liquid Glass TabView (iOS 26+ / WWDC 2025 Session 323)
+    @available(iOS 26.0, *)
+    @ViewBuilder
+    private var appleNativeLiquidGlassTabView: some View {
+        TabView(selection: $activeTab) {
+            Tab(AmyMobileTab.wave.label, systemImage: AmyMobileTab.wave.systemIcon, value: AmyMobileTab.wave) {
+                HomeWaveView(
+                    player: player,
+                    onOpenFullPlayer: {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                            isFullPlayerOpen = true
+                        }
+                    },
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenRelease: { rel in selectedRelease = rel },
+                    onOpenSettings: { isSettingsOpen = true },
+                    onNavigateCollection: {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                            activeTab = .collection
+                        }
+                    }
+                )
+            }
+
+            Tab(AmyMobileTab.trends.label, systemImage: AmyMobileTab.trends.systemIcon, value: AmyMobileTab.trends) {
+                TrendsChartsView(
+                    player: player,
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenSettings: { isSettingsOpen = true }
+                )
+            }
+
+            Tab(AmyMobileTab.search.label, systemImage: AmyMobileTab.search.systemIcon, value: AmyMobileTab.search, role: .search) {
+                SearchView(
+                    player: player,
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenRelease: { rel in selectedRelease = rel },
+                    onOpenSettings: { isSettingsOpen = true }
+                )
+            }
+
+            Tab(AmyMobileTab.collection.label, systemImage: AmyMobileTab.collection.systemIcon, value: AmyMobileTab.collection) {
+                CollectionView(
+                    player: player,
+                    onOpenArtist: { id in selectedArtistId = id },
+                    onOpenRelease: { rel in selectedRelease = rel },
+                    onOpenSettings: { isSettingsOpen = true }
+                )
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory {
+            NativeAppleLiquidGlassAccessory(
+                player: player,
+                onOpenFull: {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                        isFullPlayerOpen = true
+                    }
+                }
+            )
+        }
+        .preferredColorScheme(.dark)
+        .modifier(RootSheetsModifier(
+            player: player,
+            isFullPlayerOpen: $isFullPlayerOpen,
+            isEqualizerOpen: $isEqualizerOpen,
+            isQueueSheetOpen: $isQueueSheetOpen,
+            isSettingsOpen: $isSettingsOpen,
+            selectedArtistId: $selectedArtistId,
+            selectedRelease: $selectedRelease
+        ))
+    }
+
+    // MARK: - Legacy Fallback TabView (iOS < 26.0)
+    private var legacyLiquidGlassTabView: some View {
         let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
 
-        ZStack(alignment: .bottom) {
+        return ZStack(alignment: .bottom) {
             Color.amyBackground.ignoresSafeArea()
 
-            // Main Phone Stage with smooth fluid tab transitions
             ZStack {
                 switch activeTab {
                 case .wave:
@@ -112,161 +193,267 @@ public struct RootTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.easeInOut(duration: 0.22), value: activeTab)
-            // Gesture-based responsive scroll detection across any screen
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { val in
-                        let dy = val.translation.height
-                        if dy < -22 {
-                            // Swiping up -> scrolling down -> minimize
-                            if !isScrolledDown {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                                    isScrolledDown = true
-                                }
-                            }
-                        } else if dy > 22 {
-                            // Swiping down -> scrolling up -> expand
-                            if isScrolledDown {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                                    isScrolledDown = false
-                                }
-                            }
-                        }
-                    }
-            )
             .safeAreaInset(edge: .bottom) {
-                // Adaptive Liquid Glass Bottom Navigation Cluster
-                ZStack(alignment: .bottom) {
-                    if isScrolledDown {
-                        // Minimized / Scrolled Down State:
-                        // Left: Active Tab Circle | Middle: Compact MiniPlayer | Right: Search Circle
-                        HStack(spacing: 8) {
-                            // 1. Active Tab Button (Tapping returns to top & expands dock)
-                            Button {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                                    isScrolledDown = false
-                                }
-                            } label: {
-                                Image(systemName: activeTab.systemIcon)
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 48, height: 48)
-                            }
-                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: themeAccent, isFilledAccent: true))
-                            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                VStack(spacing: 8) {
+                    PhoneLiquidGlassMiniPlayer(
+                        player: player,
+                        glassNamespace: glassNamespace,
+                        isCompact: false,
+                        onOpenFull: { isFullPlayerOpen = true }
+                    )
 
-                            // 2. Compact MiniPlayer in middle (takes remaining space)
-                            PhoneLiquidGlassMiniPlayer(
-                                player: player,
-                                glassNamespace: glassNamespace,
-                                isCompact: true,
-                                onOpenFull: { isFullPlayerOpen = true }
-                            )
-
-                            // 3. Search Button to the right of miniplayer
-                            Button {
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                                    activeTab = .search
-                                }
-                            } label: {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 48, height: 48)
-                            }
-                            .buttonStyle(AppleLiquidGlassButtonStyle(
-                                shape: Circle(),
-                                tintColor: activeTab == .search ? themeAccent : nil,
-                                isFilledAccent: activeTab == .search
-                            ))
-                            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
-                        }
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.95).combined(with: .opacity),
-                            removal: .scale(scale: 0.95).combined(with: .opacity)
-                        ))
-                    } else {
-                        // Expanded State:
-                        // Top: Full MiniPlayer (54pt) | Bottom: 4-Tab Nav Dock (56pt)
-                        VStack(spacing: 8) {
-                            PhoneLiquidGlassMiniPlayer(
-                                player: player,
-                                glassNamespace: glassNamespace,
-                                isCompact: false,
-                                onOpenFull: { isFullPlayerOpen = true }
-                            )
-
-                            PhoneFloatingNavDock(
-                                activeTab: $activeTab,
-                                accentColor: themeAccent
-                            )
-                        }
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .bottom).combined(with: .opacity)
-                        ))
-                    }
+                    PhoneFloatingNavDock(
+                        activeTab: $activeTab,
+                        accentColor: themeAccent
+                    )
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 6)
-                .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isScrolledDown)
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $isFullPlayerOpen) {
-            FullPlayerOverlayView(
-                player: player,
-                isPresented: $isFullPlayerOpen,
-                onOpenArtist: { artistId in
-                    isFullPlayerOpen = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        selectedArtistId = artistId
+        .modifier(RootSheetsModifier(
+            player: player,
+            isFullPlayerOpen: $isFullPlayerOpen,
+            isEqualizerOpen: $isEqualizerOpen,
+            isQueueSheetOpen: $isQueueSheetOpen,
+            isSettingsOpen: $isSettingsOpen,
+            selectedArtistId: $selectedArtistId,
+            selectedRelease: $selectedRelease
+        ))
+    }
+}
+
+// MARK: - Root Sheets & Overlays Modifier
+public struct RootSheetsModifier: ViewModifier {
+    @Bindable var player: AudioPlayerManager
+    @Binding var isFullPlayerOpen: Bool
+    @Binding var isEqualizerOpen: Bool
+    @Binding var isQueueSheetOpen: Bool
+    @Binding var isSettingsOpen: Bool
+    @Binding var selectedArtistId: String?
+    @Binding var selectedRelease: ReleaseItem?
+
+    public func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $isFullPlayerOpen) {
+                FullPlayerOverlayView(
+                    player: player,
+                    isPresented: $isFullPlayerOpen,
+                    onOpenArtist: { artistId in
+                        isFullPlayerOpen = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            selectedArtistId = artistId
+                        }
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(Color.amyBackground)
+            }
+            .sheet(isPresented: $isEqualizerOpen) {
+                EqualizerSheetView(player: player)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isQueueSheetOpen) {
+                QueueBottomSheetView(player: player)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isSettingsOpen) {
+                SettingsAndProfileView(player: player)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(item: Binding(
+                get: { selectedArtistId.map { IdentifiableArtistId(id: $0) } },
+                set: { selectedArtistId = $0?.id }
+            )) { item in
+                ArtistDetailSheetView(
+                    artistId: item.id,
+                    player: player,
+                    onOpenRelease: { rel in
+                        selectedRelease = rel
+                    }
+                )
+            }
+            .sheet(item: $selectedRelease) { release in
+                AlbumOrPlaylistSheetView(
+                    release: release,
+                    player: player,
+                    onOpenArtist: { id in
+                        selectedArtistId = id
+                    }
+                )
+            }
+    }
+}
+
+// MARK: - Authentic Native Apple Liquid Glass Bottom Accessory (iOS 26+ WWDC 2025)
+// - Seamlessly responds to @Environment(\.tabViewBottomAccessoryPlacement)
+// - In .expanded mode: 52pt height, full album art, title, artist, like button, prominent play button
+// - In .inline mode (minimized on scroll down): 44pt height, automatically sits between leading active tab and trailing search tab
+// - Guaranteed 100% inside capsule bounds with zero button overflow!
+@available(iOS 26.0, *)
+public struct NativeAppleLiquidGlassAccessory: View {
+    @Bindable var player: AudioPlayerManager
+    var onOpenFull: () -> Void
+
+    @Environment(\.tabViewBottomAccessoryPlacement) private var placement: TabViewBottomAccessoryPlacement?
+    @State private var dragXOffset: CGFloat = 0
+
+    public var body: some View {
+        let isInline = placement == .inline
+        let track = player.currentTrack
+        let hasTrack = track != nil
+        let palette = track?.palette ?? .defaultPalette
+        let paletteColor = Color(hex: palette.line)
+
+        let coverSize: CGFloat = isInline ? 32 : 40
+        let height: CGFloat = isInline ? 44 : 52
+        let playBtnSize: CGFloat = isInline ? 32 : 36
+        let likeBtnSize: CGFloat = 30
+
+        HStack(spacing: isInline ? 6 : 8) {
+            // Track Info & Cover (Tap opens FullPlayer)
+            HStack(spacing: 8) {
+                // Cover Art
+                AsyncImage(url: URL(string: track?.coverUrl ?? "")) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    ZStack {
+                        Color(hex: "#252529")
+                        LinearGradient(
+                            colors: [Color(hex: palette.line).opacity(0.6), Color(hex: palette.base)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        Image(systemName: "music.note")
+                            .font(.system(size: isInline ? 12 : 14, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
                     }
                 }
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationCornerRadius(28)
-            .presentationBackground(Color.amyBackground)
-        }
-        .sheet(isPresented: $isEqualizerOpen) {
-            EqualizerSheetView(player: player)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $isQueueSheetOpen) {
-            QueueBottomSheetView(player: player)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $isSettingsOpen) {
-            SettingsAndProfileView(player: player)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(item: Binding(
-            get: { selectedArtistId.map { IdentifiableArtistId(id: $0) } },
-            set: { selectedArtistId = $0?.id }
-        )) { item in
-            ArtistDetailSheetView(
-                artistId: item.id,
-                player: player,
-                onOpenRelease: { rel in
-                    selectedRelease = rel
+                .frame(width: coverSize, height: coverSize)
+                .clipShape(RoundedRectangle(cornerRadius: isInline ? 8 : 10, style: .continuous))
+
+                // Title & Artist
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(hasTrack ? (track?.title ?? "Без названия") : "Нет трека")
+                        .font(.system(size: isInline ? 12.5 : 13.5, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Text(hasTrack ? (track?.artist ?? "Неизвестный артист") : "Нажмите для воспроизведения")
+                        .font(.system(size: isInline ? 10.5 : 11.5, weight: .medium))
+                        .foregroundStyle(Color(hex: "#A1A1AA"))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-            )
-        }
-        .sheet(item: $selectedRelease) { release in
-            AlbumOrPlaylistSheetView(
-                release: release,
-                player: player,
-                onOpenArtist: { id in
-                    selectedArtistId = id
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .offset(x: dragXOffset)
+            .onTapGesture {
+                onOpenFull()
+            }
+
+            // Like Button (shown in expanded mode to maximize space in inline mode)
+            if !isInline, let track {
+                let isLiked = player.isLiked(track)
+                Button {
+                    player.toggleLike(track)
+                } label: {
+                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(isLiked ? Color(hex: "#FF3B30") : .white.opacity(0.82))
+                        .frame(width: likeBtnSize, height: likeBtnSize)
                 }
-            )
+                .buttonStyle(AppleLiquidGlassButtonStyle(
+                    shape: Circle(),
+                    tintColor: isLiked ? Color(hex: "#FF3B30").opacity(0.28) : nil
+                ))
+            }
+
+            // Play / Pause Button
+            Button {
+                if hasTrack {
+                    player.togglePlay()
+                } else {
+                    onOpenFull()
+                }
+            } label: {
+                ZStack {
+                    if player.isLoading {
+                        ProgressView()
+                            .tint(Color(hex: "#0B0B0D"))
+                            .scaleEffect(0.7)
+                    } else {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: isInline ? 12 : 14, weight: .black))
+                            .foregroundStyle(Color(hex: "#0B0B0D"))
+                            .offset(x: player.isPlaying ? 0 : 1.0)
+                    }
+                }
+                .frame(width: playBtnSize, height: playBtnSize)
+            }
+            .buttonStyle(AppleLiquidGlassButtonStyle(
+                shape: Circle(),
+                tintColor: .white,
+                isFilledAccent: true,
+                scaleOnPress: 0.92
+            ))
         }
+        .padding(.leading, isInline ? 8 : 10)
+        .padding(.trailing, isInline ? 8 : 10)
+        .padding(.vertical, 3)
+        .frame(height: height)
+        .background {
+            if player.settings.miniPlayerStyle == .waveform {
+                MiniWaveformBackdropView(
+                    seed: track?.id ?? "amy",
+                    progress: player.duration > 0 ? min(1.0, max(0.0, player.currentTime / player.duration)) : 0,
+                    isPlaying: player.isPlaying
+                )
+                .clipShape(Capsule())
+            }
+        }
+        .amyLiquidGlass(
+            in: Capsule(),
+            tint: paletteColor,
+            tintOpacity: player.settings.glassTintIntensity,
+            interactive: true
+        )
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(isInline ? 0.22 : 0.40), radius: isInline ? 8 : 14, y: isInline ? 3 : 6)
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 10)
+                .onChanged { value in
+                    let dx = value.translation.width
+                    let dy = value.translation.height
+                    if abs(dx) > abs(dy) * 0.75 && hasTrack {
+                        withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8)) {
+                            dragXOffset = dx * 0.35
+                        }
+                    }
+                }
+                .onEnded { value in
+                    let dx = value.translation.width
+                    let dy = value.translation.height
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        dragXOffset = 0
+                    }
+                    if abs(dx) >= 25 && abs(dx) > abs(dy) * 0.7 && hasTrack {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        if dx > 0 { player.previous() } else { player.next() }
+                    } else if dy < -30 {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        onOpenFull()
+                    }
+                }
+        )
     }
 }
 

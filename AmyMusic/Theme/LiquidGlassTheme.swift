@@ -220,69 +220,93 @@ public struct AppleLiquidGlassButtonStyle<S: Shape>: ButtonStyle {
     }
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background {
+        Group {
+            if #available(iOS 26.0, *) {
                 if isFilledAccent {
-                    shape
-                        .fill(tintColor ?? .white)
-                        .overlay {
-                            if configuration.isPressed {
-                                shape.fill(Color.black.opacity(0.18))
-                            }
+                    configuration.label
+                        .background {
+                            shape
+                                .fill(tintColor ?? .white)
+                                .overlay {
+                                    if configuration.isPressed {
+                                        shape.fill(Color.black.opacity(0.18))
+                                    }
+                                }
                         }
-                        .overlay {
-                            if showStroke {
-                                shape.stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            .white.opacity(0.75),
-                                            .white.opacity(0.20)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ),
-                                    lineWidth: 0.85
-                                )
-                            }
-                        }
+                        .glassEffect(Glass.regular.tint(tintColor).interactive(), in: shape)
                 } else {
-                    shape
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            if let tintColor {
-                                shape.fill(tintColor.opacity(tintOpacity))
-                            }
-                        }
-                        .overlay {
-                            if configuration.isPressed {
-                                shape.fill(Color.white.opacity(0.16))
-                            }
-                        }
-                        .overlay {
-                            if showStroke {
-                                shape.stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            .white.opacity(0.40),
-                                            .white.opacity(0.08),
-                                            .white.opacity(0.20)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 0.8
-                                )
-                            }
-                        }
+                    configuration.label
+                        .glassEffect(
+                            (tintColor != nil ? Glass.regular.tint(tintColor) : Glass.regular).interactive(),
+                            in: shape
+                        )
                 }
+            } else {
+                configuration.label
+                    .background {
+                        if isFilledAccent {
+                            shape
+                                .fill(tintColor ?? .white)
+                                .overlay {
+                                    if configuration.isPressed {
+                                        shape.fill(Color.black.opacity(0.18))
+                                    }
+                                }
+                                .overlay {
+                                    if showStroke {
+                                        shape.stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.75),
+                                                    .white.opacity(0.20)
+                                                ],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ),
+                                            lineWidth: 0.85
+                                        )
+                                    }
+                                }
+                        } else {
+                            shape
+                                .fill(.ultraThinMaterial)
+                                .overlay {
+                                    if let tintColor {
+                                        shape.fill(tintColor.opacity(tintOpacity))
+                                    }
+                                }
+                                .overlay {
+                                    if configuration.isPressed {
+                                        shape.fill(Color.white.opacity(0.16))
+                                    }
+                                }
+                                .overlay {
+                                    if showStroke {
+                                        shape.stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.40),
+                                                    .white.opacity(0.08),
+                                                    .white.opacity(0.20)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 0.8
+                                        )
+                                    }
+                                }
+                        }
+                    }
             }
-            .scaleEffect(configuration.isPressed ? scaleOnPress : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.72), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, isPressed in
-                if isPressed {
-                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-                }
+        }
+        .scaleEffect(configuration.isPressed ? scaleOnPress : 1.0)
+        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: configuration.isPressed)
+        .onChange(of: configuration.isPressed) { _, isPressed in
+            if isPressed {
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             }
+        }
     }
 }
 
