@@ -1,16 +1,19 @@
 import SwiftUI
 import Combine
 
-// MARK: - Phone-First Root Layout (Exact Port of src/mobile/MobileLayout.jsx, MobileMiniPlayer.jsx & src/main.css)
-// - 3-Tab Icon-Only Liquid Glass Dock ("Моя волна", "Чарты", "Коллекция")
-// - Separate Floating MobileMiniPlayer (64pt height, 20pt radius, 52x52 cover, 48x48 play button, swipe L/R)
-// - 10pt gap between MiniPlayer and NavDock
-// - Automatic hiding when iPhone virtual keyboard is open (.is-keyboard-open)
+// MARK: - Phone-First Root Layout with Apple Liquid Glass Navigation
+// - 4 Tabs: "Моя волна", "Чарты", "Поиск", "Коллекция"
+// - Intelligent Liquid Glass Morphing:
+//   * At top / resting: Full MiniPlayer (54pt) + Full 4-Tab Liquid Glass Dock (56pt)
+//   * Scrolling down: Morphs into a single streamlined row:
+//     [ Active Tab Circle Button ]  [ Compact MiniPlayer ]  [ Search Circle Button ]
+// - Guaranteed Zero Overflow: All buttons and track titles comfortably nest inside the capsule.
 
 public enum AmyMobileTab: Int, CaseIterable, Identifiable {
     case wave = 0
     case trends = 1
-    case collection = 2
+    case search = 2
+    case collection = 3
 
     public var id: Int { rawValue }
 
@@ -18,6 +21,7 @@ public enum AmyMobileTab: Int, CaseIterable, Identifiable {
         switch self {
         case .wave: return "Моя волна"
         case .trends: return "Чарты"
+        case .search: return "Поиск"
         case .collection: return "Коллекция"
         }
     }
@@ -26,6 +30,7 @@ public enum AmyMobileTab: Int, CaseIterable, Identifiable {
         switch self {
         case .wave: return "waveform.path.ecg"
         case .trends: return "flame.fill"
+        case .search: return "magnifyingglass"
         case .collection: return "heart.rectangle.fill"
         }
     }
@@ -42,6 +47,7 @@ public struct RootTabView: View {
     @State private var selectedArtistId: String? = nil
     @State private var selectedRelease: ReleaseItem? = nil
     @State private var isKeyboardVisible: Bool = false
+    @State private var isScrolledDown: Bool = false
 
     @Namespace private var glassNamespace
 
@@ -50,11 +56,162 @@ public struct RootTabView: View {
     }
 
     public var body: some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                appleNativeLiquidGlassTabView
-            } else {
-                legacyFloatingDockTabView
+        let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
+
+        ZStack(alignment: .bottom) {
+            Color.amyBackground.ignoresSafeArea()
+
+            // Main Phone Stage with smooth fluid tab transitions
+            ZStack {
+                switch activeTab {
+                case .wave:
+                    HomeWaveView(
+                        player: player,
+                        onOpenFullPlayer: {
+                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                                isFullPlayerOpen = true
+                            }
+                        },
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true },
+                        onNavigateCollection: {
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                                activeTab = .collection
+                            }
+                        }
+                    )
+                    .transition(.opacity)
+
+                case .trends:
+                    TrendsChartsView(
+                        player: player,
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                    .transition(.opacity)
+
+                case .search:
+                    SearchView(
+                        player: player,
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                    .transition(.opacity)
+
+                case .collection:
+                    CollectionView(
+                        player: player,
+                        onOpenArtist: { id in selectedArtistId = id },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                    .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.22), value: activeTab)
+            // Gesture-based responsive scroll detection across any screen
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { val in
+                        let dy = val.translation.height
+                        if dy < -22 {
+                            // Swiping up -> scrolling down -> minimize
+                            if !isScrolledDown {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                                    isScrolledDown = true
+                                }
+                            }
+                        } else if dy > 22 {
+                            // Swiping down -> scrolling up -> expand
+                            if isScrolledDown {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                                    isScrolledDown = false
+                                }
+                            }
+                        }
+                    }
+            )
+            .safeAreaInset(edge: .bottom) {
+                // Adaptive Liquid Glass Bottom Navigation Cluster
+                ZStack(alignment: .bottom) {
+                    if isScrolledDown {
+                        // Minimized / Scrolled Down State:
+                        // Left: Active Tab Circle | Middle: Compact MiniPlayer | Right: Search Circle
+                        HStack(spacing: 8) {
+                            // 1. Active Tab Button (Tapping returns to top & expands dock)
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                                    isScrolledDown = false
+                                }
+                            } label: {
+                                Image(systemName: activeTab.systemIcon)
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
+                            }
+                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: themeAccent, isFilledAccent: true))
+                            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+
+                            // 2. Compact MiniPlayer in middle (takes remaining space)
+                            PhoneLiquidGlassMiniPlayer(
+                                player: player,
+                                glassNamespace: glassNamespace,
+                                isCompact: true,
+                                onOpenFull: { isFullPlayerOpen = true }
+                            )
+
+                            // 3. Search Button to the right of miniplayer
+                            Button {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                                    activeTab = .search
+                                }
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
+                            }
+                            .buttonStyle(AppleLiquidGlassButtonStyle(
+                                shape: Circle(),
+                                tintColor: activeTab == .search ? themeAccent : nil,
+                                isFilledAccent: activeTab == .search
+                            ))
+                            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                        }
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.95).combined(with: .opacity)
+                        ))
+                    } else {
+                        // Expanded State:
+                        // Top: Full MiniPlayer (54pt) | Bottom: 4-Tab Nav Dock (56pt)
+                        VStack(spacing: 8) {
+                            PhoneLiquidGlassMiniPlayer(
+                                player: player,
+                                glassNamespace: glassNamespace,
+                                isCompact: false,
+                                onOpenFull: { isFullPlayerOpen = true }
+                            )
+
+                            PhoneFloatingNavDock(
+                                activeTab: $activeTab,
+                                accentColor: themeAccent
+                            )
+                        }
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+                .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isScrolledDown)
             }
         }
         .preferredColorScheme(.dark)
@@ -111,156 +268,18 @@ public struct RootTabView: View {
             )
         }
     }
-
-    // MARK: - Authentic Apple Liquid Glass TabView (iOS 26+ WWDC 2025 Architecture)
-    @available(iOS 26.0, *)
-    @ViewBuilder
-    private var appleNativeLiquidGlassTabView: some View {
-        TabView(selection: $activeTab) {
-            Tab(AmyMobileTab.wave.label, systemImage: AmyMobileTab.wave.systemIcon, value: AmyMobileTab.wave) {
-                HomeWaveView(
-                    player: player,
-                    onOpenFullPlayer: {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                            isFullPlayerOpen = true
-                        }
-                    },
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenRelease: { rel in selectedRelease = rel },
-                    onOpenSettings: { isSettingsOpen = true },
-                    onNavigateCollection: {
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                            activeTab = .collection
-                        }
-                    }
-                )
-            }
-
-            Tab(AmyMobileTab.trends.label, systemImage: AmyMobileTab.trends.systemIcon, value: AmyMobileTab.trends) {
-                TrendsChartsView(
-                    player: player,
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenSettings: { isSettingsOpen = true }
-                )
-            }
-
-            Tab(AmyMobileTab.collection.label, systemImage: AmyMobileTab.collection.systemIcon, value: AmyMobileTab.collection) {
-                CollectionView(
-                    player: player,
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenRelease: { rel in selectedRelease = rel },
-                    onOpenSettings: { isSettingsOpen = true }
-                )
-            }
-        }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            PhoneLiquidGlassMiniPlayer(
-                player: player,
-                glassNamespace: glassNamespace,
-                onOpenFull: {
-                    isFullPlayerOpen = true
-                },
-                onOpenEqualizer: { isEqualizerOpen = true },
-                onToggleKaraoke: {
-                    withAnimation(.spring(duration: 0.3)) {
-                        isMiniKaraokeOpen.toggle()
-                    }
-                }
-            )
-            .padding(.horizontal, 14)
-            .padding(.bottom, 2)
-        }
-    }
-
-    // MARK: - Legacy Floating Nav Dock Fallback (< iOS 26.0)
-    @ViewBuilder
-    private var legacyFloatingDockTabView: some View {
-        let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
-
-        ZStack(alignment: .bottom) {
-            Color.amyBackground.ignoresSafeArea()
-
-            ZStack {
-                switch activeTab {
-                case .wave:
-                    HomeWaveView(
-                        player: player,
-                        onOpenFullPlayer: {
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                                isFullPlayerOpen = true
-                            }
-                        },
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
-                        onOpenSettings: { isSettingsOpen = true },
-                        onNavigateCollection: {
-                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                                activeTab = .collection
-                            }
-                        }
-                    )
-                    .transition(.opacity)
-                case .trends:
-                    TrendsChartsView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
-                case .collection:
-                    CollectionView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.easeInOut(duration: 0.22), value: activeTab)
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 8) {
-                    PhoneLiquidGlassMiniPlayer(
-                        player: player,
-                        glassNamespace: glassNamespace,
-                        onOpenFull: {
-                            isFullPlayerOpen = true
-                        },
-                        onOpenEqualizer: { isEqualizerOpen = true },
-                        onToggleKaraoke: {
-                            withAnimation(.spring(duration: 0.3)) {
-                                isMiniKaraokeOpen.toggle()
-                            }
-                        }
-                    )
-
-                    PhoneFloatingNavDock(
-                        activeTab: $activeTab,
-                        accentColor: themeAccent
-                    )
-                }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 6)
-            }
-        }
-    }
 }
 
-// MARK: - Phone Liquid Glass Mini-Player (Exact Port of .mobile-mini-player in MobileMiniPlayer.jsx)
-// - min-height: 64pt, border-radius: 20pt, padding: 6pt 8pt 6pt 6pt
-// - Cover: 52x52pt, border-radius: 14pt
-// - Title: 14pt bold (#fff), Artist: 12pt (#a1a1aa)
-// - Play button: 48x48pt white circle (#fff) with 21x21pt black icon (#0b0b0d)
-// - Swipe gesture: deltaX >= 52pt -> left = previous(), right = next()
+// MARK: - Phone Liquid Glass Mini-Player with Exact Inner Bounds
+// - Full mode: height 54pt, capsule shape, padding leading 7, trailing 11
+// - Compact mode: height 48pt, capsule shape, padding leading 6, trailing 9
+// - Play button & Heart button nest strictly within the inner glass boundaries.
 
 public struct PhoneLiquidGlassMiniPlayer: View {
     @Bindable var player: AudioPlayerManager
     var glassNamespace: Namespace.ID
+    var isCompact: Bool = false
     var onOpenFull: () -> Void
-    var onOpenEqualizer: () -> Void
-    var onToggleKaraoke: () -> Void
 
     @State private var dragXOffset: CGFloat = 0
 
@@ -270,10 +289,15 @@ public struct PhoneLiquidGlassMiniPlayer: View {
         let palette = track?.palette ?? .defaultPalette
         let progress = player.duration > 0 ? min(1.0, max(0.0, player.currentTime / player.duration)) : 0
 
-        HStack(spacing: 8) {
-            // .mobile-mini-player__track (свайп по всей поверхности + тап для открытия фуллплеера)
-            HStack(spacing: 10) {
-                // .mobile-mini-player__cover (50x50pt, radius 14pt)
+        let coverSize: CGFloat = isCompact ? 36 : 40
+        let height: CGFloat = isCompact ? 48 : 54
+        let playBtnSize: CGFloat = isCompact ? 34 : 38
+        let likeBtnSize: CGFloat = isCompact ? 30 : 32
+
+        HStack(spacing: isCompact ? 7 : 9) {
+            // Track Info & Cover (Tap opens FullPlayer)
+            HStack(spacing: 8) {
+                // Cover Art
                 AsyncImage(url: URL(string: track?.coverUrl ?? "")) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
@@ -285,67 +309,53 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                             endPoint: .bottomTrailing
                         )
                         Image(systemName: "music.note")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: isCompact ? 13 : 15, weight: .bold))
                             .foregroundStyle(.white.opacity(0.8))
                     }
                 }
-                .frame(width: 50, height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .frame(width: coverSize, height: coverSize)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                // .mobile-mini-player__meta
-                VStack(alignment: .leading, spacing: 2) {
+                // Title & Artist
+                VStack(alignment: .leading, spacing: 1) {
                     Text(hasTrack ? (track?.title ?? "Без названия") : "Нет трека")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: isCompact ? 13 : 13.5, weight: .bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
+                        .truncationMode(.tail)
 
-                    Text(hasTrack ? (track?.artist ?? "Неизвестный артист") : "Трек не загружен")
-                        .font(.system(size: 12, weight: .regular))
+                    Text(hasTrack ? (track?.artist ?? "Неизвестный артист") : "Нажмите для воспроизведения")
+                        .font(.system(size: isCompact ? 11 : 11.5, weight: .medium))
                         .foregroundStyle(Color(hex: "#A1A1AA"))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .offset(x: dragXOffset)
             .onTapGesture {
                 onOpenFull()
             }
 
-            if player.settings.miniPlayerStyle == .classic {
-                let themeAccent = Color(hex: player.settings.themePreset.primaryHex)
-                Button(action: onToggleKaraoke) {
-                    Image(systemName: "quote.bubble.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
-
-                Button(action: onOpenEqualizer) {
-                    Image(systemName: "slider.vertical.3")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(player.settings.equalizerEnabled ? .white : .white.opacity(0.85))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: player.settings.equalizerEnabled ? themeAccent : nil))
-            }
-
-            // Кнопка Лайка (слева от кнопки плей/стоп)
+            // Like Button
             if let track {
                 let isLiked = player.isLiked(track)
                 Button {
                     player.toggleLike(track)
                 } label: {
                     Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 19, weight: .bold))
+                        .font(.system(size: isCompact ? 14 : 16, weight: .bold))
                         .foregroundStyle(isLiked ? Color(hex: "#FF3B30") : .white.opacity(0.82))
-                        .frame(width: 38, height: 38)
+                        .frame(width: likeBtnSize, height: likeBtnSize)
                 }
-                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: isLiked ? Color(hex: "#FF3B30").opacity(0.30) : nil))
+                .buttonStyle(AppleLiquidGlassButtonStyle(
+                    shape: Circle(),
+                    tintColor: isLiked ? Color(hex: "#FF3B30").opacity(0.28) : nil
+                ))
             }
 
-            // .mobile-mini-player__play (46x46pt white circle, 18x18pt black icon)
+            // Play / Pause Button (Strictly nested inside right curve)
             Button {
                 if hasTrack {
                     player.togglePlay()
@@ -357,22 +367,27 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                     if player.isLoading {
                         ProgressView()
                             .tint(Color(hex: "#0B0B0D"))
-                            .scaleEffect(0.85)
+                            .scaleEffect(0.75)
                     } else {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 18, weight: .black))
+                            .font(.system(size: isCompact ? 13 : 15, weight: .black))
                             .foregroundStyle(Color(hex: "#0B0B0D"))
-                            .offset(x: player.isPlaying ? 0 : 1.5)
+                            .offset(x: player.isPlaying ? 0 : 1.2)
                     }
                 }
-                .frame(width: 46, height: 46)
+                .frame(width: playBtnSize, height: playBtnSize)
             }
-            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: .white, isFilledAccent: true, scaleOnPress: 0.92))
+            .buttonStyle(AppleLiquidGlassButtonStyle(
+                shape: Circle(),
+                tintColor: .white,
+                isFilledAccent: true,
+                scaleOnPress: 0.92
+            ))
         }
         .padding(.leading, 7)
-        .padding(.trailing, 9)
-        .padding(.vertical, 7)
-        .frame(height: 64)
+        .padding(.trailing, 10)
+        .padding(.vertical, 4)
+        .frame(height: height)
         .background {
             if player.settings.miniPlayerStyle == .waveform {
                 MiniWaveformBackdropView(
@@ -380,23 +395,22 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                     progress: progress,
                     isPlaying: player.isPlaying
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(Capsule())
             }
         }
         .amyLiquidGlass(
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+            in: Capsule(),
             tint: Color(hex: palette.line),
             tintOpacity: player.settings.glassTintIntensity,
             interactive: true
         )
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.42), radius: 20, y: 10)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.38), radius: 14, y: 6)
         .highPriorityGesture(
             DragGesture(minimumDistance: 10)
                 .onChanged { value in
                     let dx = value.translation.width
                     let dy = value.translation.height
-                    // Приоритет горизонтального свайпа треков
                     if abs(dx) > abs(dy) * 0.75 && hasTrack {
                         withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8)) {
                             dragXOffset = dx * 0.35
@@ -411,9 +425,6 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                         dragXOffset = 0
                     }
 
-                    // Свайп по любой поверхности миниплеера:
-                    // Вправо (dx >= 25) -> предыдущий трек
-                    // Влево (dx <= -25) -> следующий трек
                     if abs(dx) >= 25 && abs(dx) > abs(dy) * 0.7 && hasTrack {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         if dx > 0 {
@@ -422,7 +433,6 @@ public struct PhoneLiquidGlassMiniPlayer: View {
                             player.next()
                         }
                     } else if dy < -30 {
-                        // Свайп снизу вверх -> открыть полный плеер
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         onOpenFull()
                     }
@@ -431,13 +441,9 @@ public struct PhoneLiquidGlassMiniPlayer: View {
     }
 }
 
-// MARK: - Telegram-Style Liquid Glass Floating Navigation Dock
-// Exact reproduction of Telegram iOS 26 Liquid Glass floating bar with draggable chromatic droplet (image0.jpg & image1.jpg)
-// - Floating Capsule() with glossy specular top highlight & deep dark frosted glass
-// MARK: - Telegram & Kavsoft iOS 26 Pure Liquid Glass Floating Nav Dock
-// - Pure Apple Liquid Glass effect: Crystal frosted glass with specular reflections (NO RAINBOW, NO ORANGE)
-// - Pixel-perfect centering on active tab icon and label across all iPhone screen sizes
-// - Bulging liquid glass droplet on hold & fluid drag with spring snap physics
+// MARK: - 4-Tab Pure Apple Liquid Glass Floating Nav Dock
+// - 4 Dynamic slots with fluid liquid glass droplet tracking & drag stretching
+// - Perfectly centered icons & labels across all iPhone widths
 
 public struct PhoneFloatingNavDock: View {
     @Binding var activeTab: AmyMobileTab
@@ -454,24 +460,24 @@ public struct PhoneFloatingNavDock: View {
             let totalH = geo.size.height
             let tabCount = CGFloat(AmyMobileTab.allCases.count)
             let slotW = totalW / tabCount
+            let maxIdx = AmyMobileTab.allCases.count - 1
 
-            // Active Tab Center X - exactly aligned with the slot center
+            // Active Tab Center X
             let activeIndex = CGFloat(activeTab.rawValue)
             let idleCenterX = slotW * (activeIndex + 0.5)
 
-            // Droplet Center X (smooth tracking when dragging, exact center when resting)
+            // Droplet Center X
             let dropletCenterX = isHoldingDroplet
                 ? min(max(slotW * 0.45, dragX), totalW - slotW * 0.45)
                 : idleCenterX
 
             // Elastic horizontal expansion during drag
-            let stretchW = isHoldingDroplet ? min(24, abs(dragOffset) * 0.22) : 0
+            let stretchW = isHoldingDroplet ? min(20, abs(dragOffset) * 0.20) : 0
             let dropletW = slotW * 0.88 + stretchW
-            // Bulges slightly above and below the dock when held
-            let dropletH = isHoldingDroplet ? totalH + 8 : totalH - 12
+            let dropletH = isHoldingDroplet ? totalH + 6 : totalH - 12
 
             ZStack {
-                // Background Liquid Glass Droplet ("Капля") - нативное ультратонкое стекло с зеркальной кромкой
+                // Background Liquid Glass Droplet ("Капля")
                 ZStack {
                     Capsule()
                         .fill(.ultraThinMaterial)
@@ -500,19 +506,19 @@ public struct PhoneFloatingNavDock: View {
                 .animation(.spring(response: 0.30, dampingFraction: 0.70), value: isHoldingDroplet)
                 .allowsHitTesting(false)
 
-                // 3 Tabs: Explicit slot width guarantees 100% dead-center icon and text alignment
+                // 4 Tabs: Dynamic slot width guarantees 100% dead-center icon and text alignment
                 HStack(spacing: 0) {
                     ForEach(AmyMobileTab.allCases) { tab in
                         let isCurrent = (isHoldingDroplet ? (hoveredTab == tab) : (activeTab == tab))
 
-                        VStack(spacing: 3) {
+                        VStack(spacing: 2.5) {
                             Image(systemName: tab.systemIcon)
-                                .font(.system(size: 20, weight: isCurrent ? .bold : .medium))
+                                .font(.system(size: 19, weight: isCurrent ? .bold : .medium))
                                 .foregroundStyle(isCurrent ? .white : .white.opacity(isHoldingDroplet ? 0.40 : 0.60))
                                 .scaleEffect(isCurrent ? (isHoldingDroplet ? 1.15 : 1.05) : 1.0)
 
                             Text(tab.label)
-                                .font(.system(size: 10.5, weight: isCurrent ? .bold : .medium))
+                                .font(.system(size: 10, weight: isCurrent ? .bold : .medium))
                                 .foregroundStyle(isCurrent ? .white : .white.opacity(isHoldingDroplet ? 0.40 : 0.60))
                         }
                         .frame(width: slotW, height: totalH)
@@ -535,14 +541,14 @@ public struct PhoneFloatingNavDock: View {
                         dragX = x
                         dragOffset = val.translation.width
 
-                        let index = min(2, max(0, Int(floor(x / slotW))))
+                        let index = min(maxIdx, max(0, Int(floor(x / slotW))))
                         if let tab = AmyMobileTab(rawValue: index), hoveredTab != tab {
                             hoveredTab = tab
                             UISelectionFeedbackGenerator().selectionChanged()
                         }
                     }
                     .onEnded { val in
-                        let finalIndex = min(2, max(0, Int(floor(val.location.x / slotW))))
+                        let finalIndex = min(maxIdx, max(0, Int(floor(val.location.x / slotW))))
                         let finalTab = AmyMobileTab(rawValue: finalIndex) ?? activeTab
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.70)) {
                             activeTab = finalTab
@@ -554,7 +560,7 @@ public struct PhoneFloatingNavDock: View {
                     }
             )
         }
-        .frame(height: 58)
+        .frame(height: 56)
         .background {
             Capsule()
                 .fill(.ultraThinMaterial)

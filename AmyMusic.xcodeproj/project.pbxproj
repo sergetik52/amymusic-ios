@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10048BA4D17A1FF47199285 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200C1D6EE22130E4BE49304 /* SearchView.swift */; };
 		AA1024012026101200000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1024022026101200000002 /* Assets.xcassets */; };
 		0ACBE2A71E6635E3F6D27320 /* LiquidGlassTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E87C54D82FCCF66EEFDCCF2 /* LiquidGlassTheme.swift */; };
 		1B82914C1023145933D15429 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C96C628766410CFFC2B76CD1 /* Models.swift */; };
@@ -56,6 +57,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A200C1D6EE22130E4BE49304 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		0A6477BF840CB29BDE427E20 /* MiniKaraokeFloatingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniKaraokeFloatingOverlay.swift; sourceTree = "<group>"; };
 		15CC0C17E4491A0FB79CC3CC /* YandexMusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YandexMusicService.swift; sourceTree = "<group>"; };
 		20121C165E447C9D6B9EC828 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				46712EAF6973EE37550967D1 /* HomeWaveView.swift */,
 				0A6477BF840CB29BDE427E20 /* MiniKaraokeFloatingOverlay.swift */,
 				74490FCCF4A9A7BC6E6C5F3A /* RootTabView.swift */,
+				A200C1D6EE22130E4BE49304 /* SearchView.swift */,
 				FB213F113F42170E0FEA08BC /* SettingsAndProfileView.swift */,
 				D17E5ECDCABC6E4028B128CC /* TrendsChartsView.swift */,
 			);
@@ -281,6 +284,7 @@
 				39F7B1D83E96D2B229432BAE /* MiniKaraokeFloatingOverlay.swift in Sources */,
 				1B82914C1023145933D15429 /* Models.swift in Sources */,
 				2AF3774D88CCA712A2793BF8 /* RootTabView.swift in Sources */,
+				A10048BA4D17A1FF47199285 /* SearchView.swift in Sources */,
 				ADAFA18EA4F0854317B13AD6 /* SettingsAndProfileView.swift in Sources */,
 				57325BC3EDC7806B0AC3A2CC /* SoundCloudService.swift in Sources */,
 				57B4AAFC60EAC2B9089B2597 /* TrendsChartsView.swift in Sources */,
