@@ -334,41 +334,30 @@ public struct ArtistDetailPageView: View {
                 }
             }
 
-            // Top Bar: Back Button directly on interface (No grey bar, no stripe)
+            // Top Bar: Back Button in top-right corner, prominent and larger
             HStack {
-                AppleLiquidGlassBackButton(title: "Назад") {
-                    onBack()
-                }
                 Spacer()
+
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onBack()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 15, weight: .bold))
+                        Text("Назад")
+                            .font(.system(size: 15, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
             }
             .padding(.horizontal, 16)
             .padding(.top, topSafeInset + 6)
-
-            // Bottom Stack: MiniPlayer + Navigation TabBar Dock
-            VStack(spacing: 8) {
-                Spacer()
-
-                if player.currentTrack != nil {
-                    PhoneLiquidGlassMiniPlayer(
-                        player: player,
-                        onOpenFull: onOpenFullPlayer
-                    )
-                }
-
-                PhoneFloatingNavDock(
-                    activeTab: $activeTab,
-                    accentColor: Color(hex: player.settings.themePreset.primaryHex),
-                    onTriggerSearch: {
-                        onTriggerSearch?()
-                    }
-                )
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-        }
-        .onChange(of: activeTab) { _, _ in
-            onBack()
+            .zIndex(100)
         }
         .task {
             isLoading = true
@@ -415,6 +404,7 @@ public struct AlbumOrPlaylistSheetView: View {
     public var release: ReleaseItem
     @Bindable var player: AudioPlayerManager
     public var onOpenArtist: (String) -> Void
+    public var onClose: (() -> Void)? = nil
     public var onOpenFullPlayer: (() -> Void)? = nil
     public var isNested: Bool = false
     @Environment(\.dismiss) private var dismiss
@@ -438,6 +428,7 @@ public struct AlbumOrPlaylistSheetView: View {
     private var isDeletablePlaylist: Bool {
         guard !isLikedSpecialPlaylist else { return false }
         return activeRelease.kind == .userPlaylist ||
+               activeRelease.kind == .playlist ||
                player.userPlaylists.contains(where: { $0.id == activeRelease.id }) ||
                player.savedReleases.contains(where: { $0.id == activeRelease.id })
     }
@@ -604,36 +595,64 @@ public struct AlbumOrPlaylistSheetView: View {
                 // Top Bar Buttons directly on interface (No grey bar, no stripe)
                 HStack {
                     if !isNested {
-                        Button(action: { dismiss() }) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            onClose?()
+                            dismiss()
+                        } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(.white)
-                                .frame(width: 36, height: 36)
+                                .frame(width: 42, height: 42)
+                                .contentShape(Circle())
                         }
                         .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
                     } else {
-                        AppleLiquidGlassBackButton {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            onClose?()
                             dismiss()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 14, weight: .bold))
+                                Text("Назад")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .contentShape(Capsule())
                         }
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                     }
 
                     Spacer()
 
                     if isDeletablePlaylist {
                         Button(role: .destructive) {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             player.deleteUserPlaylist(id: activeRelease.id)
+                            onClose?()
                             dismiss()
                         } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.red)
-                                .frame(width: 36, height: 36)
+                            HStack(spacing: 6) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 14, weight: .bold))
+                                Text("Удалить")
+                                    .font(.system(size: 13, weight: .bold))
+                            }
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .contentShape(Capsule())
                         }
-                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: .red.opacity(0.35)))
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: .red.opacity(0.35)))
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, topButtonPadding)
+                .zIndex(100)
 
                 // Bottom MiniPlayer: ONLY miniplayer, no tabbar
                 if player.currentTrack != nil {

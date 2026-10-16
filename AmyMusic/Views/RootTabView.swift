@@ -63,40 +63,40 @@ public struct RootTabView: View {
             } else {
                 legacyLiquidGlassTabView
             }
-
-            if let artistId = selectedArtistId {
-                ArtistDetailPageView(
-                    artistId: artistId,
-                    player: player,
-                    activeTab: $activeTab,
-                    onBack: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                            selectedArtistId = nil
-                        }
-                    },
-                    onOpenRelease: { rel in
-                        selectedRelease = rel
-                    },
-                    onOpenFullPlayer: {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                            isFullPlayerOpen = true
-                        }
-                    },
-                    onTriggerSearch: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                            selectedArtistId = nil
-                            activeTab = .wave
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                triggerSearchFocus = true
-                            }
-                        }
-                    }
-                )
-                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
-                .zIndex(10)
-            }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: selectedArtistId != nil)
+    }
+
+    @ViewBuilder
+    private func artistPageView(_ artistId: String) -> some View {
+        ArtistDetailPageView(
+            artistId: artistId,
+            player: player,
+            activeTab: $activeTab,
+            onBack: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                    selectedArtistId = nil
+                }
+            },
+            onOpenRelease: { rel in
+                selectedRelease = rel
+            },
+            onOpenFullPlayer: {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                    isFullPlayerOpen = true
+                }
+            },
+            onTriggerSearch: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                    selectedArtistId = nil
+                    activeTab = .wave
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        triggerSearchFocus = true
+                    }
+                }
+            }
+        )
+        .transition(.opacity)
     }
 
     // MARK: - Authentic Apple Liquid Glass TabView (iOS 26+ / WWDC 2025 Session 323)
@@ -105,31 +105,47 @@ public struct RootTabView: View {
     private var appleNativeLiquidGlassTabView: some View {
         TabView(selection: $activeTab) {
             Tab(AmyMobileTab.wave.label, systemImage: AmyMobileTab.wave.systemIcon, value: AmyMobileTab.wave) {
-                HomeWaveView(
-                    player: player,
-                    triggerSearchFocus: $triggerSearchFocus,
-                    onOpenFullPlayer: {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                            isFullPlayerOpen = true
+                if let artistId = selectedArtistId, activeTab == .wave {
+                    artistPageView(artistId)
+                } else {
+                    HomeWaveView(
+                        player: player,
+                        triggerSearchFocus: $triggerSearchFocus,
+                        onOpenFullPlayer: {
+                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                                isFullPlayerOpen = true
+                            }
+                        },
+                        onOpenArtist: { id in
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                selectedArtistId = id
+                            }
+                        },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true },
+                        onNavigateCollection: {
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                                activeTab = .collection
+                            }
                         }
-                    },
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenRelease: { rel in selectedRelease = rel },
-                    onOpenSettings: { isSettingsOpen = true },
-                    onNavigateCollection: {
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                            activeTab = .collection
-                        }
-                    }
-                )
+                    )
+                }
             }
 
             Tab(AmyMobileTab.trends.label, systemImage: AmyMobileTab.trends.systemIcon, value: AmyMobileTab.trends) {
-                TrendsChartsView(
-                    player: player,
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenSettings: { isSettingsOpen = true }
-                )
+                if let artistId = selectedArtistId, activeTab == .trends {
+                    artistPageView(artistId)
+                } else {
+                    TrendsChartsView(
+                        player: player,
+                        onOpenArtist: { id in
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                selectedArtistId = id
+                            }
+                        },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                }
             }
 
             Tab(AmyMobileTab.search.label, systemImage: AmyMobileTab.search.systemIcon, value: AmyMobileTab.search, role: .search) {
@@ -137,12 +153,20 @@ public struct RootTabView: View {
             }
 
             Tab(AmyMobileTab.collection.label, systemImage: AmyMobileTab.collection.systemIcon, value: AmyMobileTab.collection) {
-                CollectionView(
-                    player: player,
-                    onOpenArtist: { id in selectedArtistId = id },
-                    onOpenRelease: { rel in selectedRelease = rel },
-                    onOpenSettings: { isSettingsOpen = true }
-                )
+                if let artistId = selectedArtistId, activeTab == .collection {
+                    artistPageView(artistId)
+                } else {
+                    CollectionView(
+                        player: player,
+                        onOpenArtist: { id in
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                selectedArtistId = id
+                            }
+                        },
+                        onOpenRelease: { rel in selectedRelease = rel },
+                        onOpenSettings: { isSettingsOpen = true }
+                    )
+                }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -156,11 +180,15 @@ public struct RootTabView: View {
                 }
             )
         }
-        .onChange(of: activeTab) { _, newTab in
+        .onChange(of: activeTab) { oldTab, newTab in
             if newTab == .search {
                 activeTab = .wave
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     triggerSearchFocus = true
+                }
+            } else if oldTab != newTab && selectedArtistId != nil {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    selectedArtistId = nil
                 }
             }
         }
@@ -184,43 +212,59 @@ public struct RootTabView: View {
             Color.amyBackground.ignoresSafeArea()
 
             ZStack {
-                switch activeTab {
-                case .wave, .search:
-                    HomeWaveView(
-                        player: player,
-                        triggerSearchFocus: $triggerSearchFocus,
-                        onOpenFullPlayer: {
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                                isFullPlayerOpen = true
+                if let artistId = selectedArtistId {
+                    artistPageView(artistId)
+                } else {
+                    switch activeTab {
+                    case .wave, .search:
+                        HomeWaveView(
+                            player: player,
+                            triggerSearchFocus: $triggerSearchFocus,
+                            onOpenFullPlayer: {
+                                withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                                    isFullPlayerOpen = true
+                                }
+                            },
+                            onOpenArtist: { id in
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                    selectedArtistId = id
+                                }
+                            },
+                            onOpenRelease: { rel in selectedRelease = rel },
+                            onOpenSettings: { isSettingsOpen = true },
+                            onNavigateCollection: {
+                                withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                                    activeTab = .collection
+                                }
                             }
-                        },
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
-                        onOpenSettings: { isSettingsOpen = true },
-                        onNavigateCollection: {
-                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                                activeTab = .collection
-                            }
-                        }
-                    )
-                    .transition(.opacity)
+                        )
+                        .transition(.opacity)
 
-                case .trends:
-                    TrendsChartsView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
+                    case .trends:
+                        TrendsChartsView(
+                            player: player,
+                            onOpenArtist: { id in
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                    selectedArtistId = id
+                                }
+                            },
+                            onOpenSettings: { isSettingsOpen = true }
+                        )
+                        .transition(.opacity)
 
-                case .collection:
-                    CollectionView(
-                        player: player,
-                        onOpenArtist: { id in selectedArtistId = id },
-                        onOpenRelease: { rel in selectedRelease = rel },
-                        onOpenSettings: { isSettingsOpen = true }
-                    )
-                    .transition(.opacity)
+                    case .collection:
+                        CollectionView(
+                            player: player,
+                            onOpenArtist: { id in
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                    selectedArtistId = id
+                                }
+                            },
+                            onOpenRelease: { rel in selectedRelease = rel },
+                            onOpenSettings: { isSettingsOpen = true }
+                        )
+                        .transition(.opacity)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -309,8 +353,13 @@ public struct RootSheetsModifier: ViewModifier {
                     onOpenArtist: { id in
                         selectedRelease = nil
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                            selectedArtistId = id
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                selectedArtistId = id
+                            }
                         }
+                    },
+                    onClose: {
+                        selectedRelease = nil
                     },
                     onOpenFullPlayer: {
                         isFullPlayerOpen = true
