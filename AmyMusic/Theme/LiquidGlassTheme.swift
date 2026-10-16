@@ -342,27 +342,22 @@ public extension ButtonStyle {
 // MARK: - Dedicated Apple Liquid Glass Back Button
 
 public struct AppleLiquidGlassBackButton: View {
-    public var title: String
+    public var title: String?
     public var action: () -> Void
 
-    public init(title: String = "Назад", action: @escaping () -> Void) {
+    public init(title: String? = nil, action: @escaping () -> Void) {
         self.title = title
         self.action = action
     }
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 13, weight: .bold))
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            Image(systemName: "chevron.left")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
         }
-        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
+        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
     }
 }
 
@@ -646,98 +641,74 @@ public struct LiquidGlassSwitch: View {
 
         ZStack(alignment: .leading) {
             // 1. Recessed Frosted Glass Track
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    Capsule().fill(Color(hex: "#101014").opacity(0.60))
-                }
-                .overlay {
-                    // Fluid glowing chamber fill from inside the glass
+            Group {
+                if #available(iOS 26.0, *) {
                     Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    activeAccent.opacity(0.55),
-                                    activeAccent.opacity(0.35)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .opacity(Double(progress))
-                }
-                .overlay {
-                    // Specular rim stroke
+                        .glassEffect(Glass.regular, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .fill(activeAccent.opacity(0.35 * Double(progress)))
+                        }
+                } else {
                     Capsule()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    .white.opacity(0.42 + 0.18 * Double(progress)),
-                                    .white.opacity(0.08),
-                                    .white.opacity(0.22)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.85
-                        )
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            Capsule()
+                                .fill(activeAccent.opacity(0.35 * Double(progress)))
+                        }
                 }
-
-            // 2. Liquid Glass Droplet (Thumb)
-            ZStack {
-                // Soft depth drop shadow
-                Capsule()
-                    .fill(Color.black.opacity(0.38))
-                    .frame(width: thumbWidth, height: thumbHeight)
-                    .blur(radius: 2.5)
-                    .offset(y: 1.5)
-
-                // Droplet body with specular lens highlights
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .white,
-                                Color(white: 0.93)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: thumbWidth, height: thumbHeight)
-
-                // Top Specular Curved Lens Highlight
-                VStack {
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [.white.opacity(0.95), .white.opacity(0.0)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(width: max(8, thumbWidth - 6), height: max(6, thumbHeight * 0.40))
-                        .padding(.top, 1.5)
-                    Spacer()
-                }
-                .frame(width: thumbWidth, height: thumbHeight)
-                .allowsHitTesting(false)
-
-                // Specular rim border
+            }
+            .overlay {
                 Capsule()
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                .white.opacity(0.95),
-                                .white.opacity(0.45)
+                                .white.opacity(0.35 + 0.15 * Double(progress)),
+                                .white.opacity(0.08),
+                                .white.opacity(0.20)
                             ],
-                            startPoint: .top,
-                            endPoint: .bottom
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         ),
                         lineWidth: 0.85
                     )
-                    .frame(width: thumbWidth, height: thumbHeight)
             }
+
+            // 2. Liquid Glass Droplet (Thumb)
+            Group {
+                if #available(iOS 26.0, *) {
+                    Capsule()
+                        .fill(Color.white)
+                        .glassEffect(Glass.regular.interactive(), in: Capsule())
+                        .shadow(color: .black.opacity(0.22), radius: 3, y: 1.5)
+                } else {
+                    ZStack {
+                        Capsule()
+                            .fill(Color.black.opacity(0.38))
+                            .frame(width: thumbWidth, height: thumbHeight)
+                            .blur(radius: 2.5)
+                            .offset(y: 1.5)
+
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        .white,
+                                        Color(white: 0.93)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(width: thumbWidth, height: thumbHeight)
+
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.8), lineWidth: 0.8)
+                            .frame(width: thumbWidth, height: thumbHeight)
+                    }
+                }
+            }
+            .frame(width: thumbWidth, height: thumbHeight)
             .position(x: thumbX, y: trackHeight / 2)
             .animation(.spring(response: 0.28, dampingFraction: 0.68), value: visualOffset)
             .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.72), value: stretch)
@@ -847,42 +818,28 @@ public struct LiquidGlassSegmentedPicker<T: Hashable & Equatable>: View {
 
             ZStack {
                 // Liquid Droplet Indicator
-                ZStack {
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [.white, Color(white: 0.92)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
-
-                    // Specular lens highlight
-                    VStack {
+                Group {
+                    if #available(iOS 26.0, *) {
                         Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [.white.opacity(0.95), .white.opacity(0.0)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
+                            .fill(Color.white)
+                            .glassEffect(Glass.regular.interactive(), in: Capsule())
+                            .shadow(color: .black.opacity(0.20), radius: 5, y: 1.5)
+                    } else {
+                        ZStack {
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.white, Color(white: 0.92)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
                                 )
-                            )
-                            .frame(height: max(4, dropletH * 0.38))
-                            .padding(.top, 1.5)
-                            .padding(.horizontal, 4)
-                        Spacer()
-                    }
+                                .shadow(color: .black.opacity(0.25), radius: 5, y: 1.5)
 
-                    Capsule()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [.white.opacity(0.95), .white.opacity(0.40)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.85
-                        )
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.8), lineWidth: 0.8)
+                        }
+                    }
                 }
                 .frame(width: dropletW, height: dropletH)
                 .position(x: dropletX, y: totalH / 2)
@@ -939,20 +896,22 @@ public struct LiquidGlassSegmentedPicker<T: Hashable & Equatable>: View {
                     }
             )
         }
-        .frame(height: 38)
+        .frame(height: 36)
         .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    Capsule().fill(Color(hex: "#101014").opacity(0.60))
-                }
+            if #available(iOS 26.0, *) {
+                Capsule()
+                    .glassEffect(Glass.regular, in: Capsule())
+            } else {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+            }
         }
         .overlay {
             Capsule()
                 .strokeBorder(
                     LinearGradient(
                         colors: [
-                            .white.opacity(0.38),
+                            .white.opacity(0.35),
                             .white.opacity(0.08),
                             .white.opacity(0.20)
                         ],

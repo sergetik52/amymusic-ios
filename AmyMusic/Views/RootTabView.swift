@@ -324,12 +324,7 @@ public struct NativeAppleLiquidGlassAccessory: View {
                     image.resizable().scaledToFill()
                 } placeholder: {
                     ZStack {
-                        Color(hex: "#252529")
-                        LinearGradient(
-                            colors: [Color(hex: palette.line).opacity(0.6), Color(hex: palette.base)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        Color(hex: "#222226")
                         Image(systemName: "music.note")
                             .font(.system(size: isInline ? 12 : 14, weight: .bold))
                             .foregroundStyle(.white.opacity(0.8))
@@ -410,20 +405,10 @@ public struct NativeAppleLiquidGlassAccessory: View {
         .padding(.trailing, isInline ? 8 : 10)
         .padding(.vertical, 3)
         .frame(height: height)
-        .background {
-            if player.settings.miniPlayerStyle == .waveform {
-                MiniWaveformBackdropView(
-                    seed: track?.id ?? "amy",
-                    progress: player.duration > 0 ? min(1.0, max(0.0, player.currentTime / player.duration)) : 0,
-                    isPlaying: player.isPlaying
-                )
-                .clipShape(Capsule())
-            }
-        }
         .amyLiquidGlass(
             in: Capsule(),
-            tint: paletteColor,
-            tintOpacity: player.settings.glassTintIntensity,
+            tint: nil,
+            tintOpacity: 0,
             interactive: true
         )
         .clipShape(Capsule())
@@ -575,20 +560,10 @@ public struct PhoneLiquidGlassMiniPlayer: View {
         .padding(.trailing, 10)
         .padding(.vertical, 4)
         .frame(height: height)
-        .background {
-            if player.settings.miniPlayerStyle == .waveform {
-                MiniWaveformBackdropView(
-                    seed: track?.id ?? "amy",
-                    progress: progress,
-                    isPlaying: player.isPlaying
-                )
-                .clipShape(Capsule())
-            }
-        }
         .amyLiquidGlass(
             in: Capsule(),
-            tint: Color(hex: palette.line),
-            tintOpacity: player.settings.glassTintIntensity,
+            tint: nil,
+            tintOpacity: 0,
             interactive: true
         )
         .clipShape(Capsule())

@@ -68,89 +68,77 @@ public struct FullPlayerOverlayView: View {
             let playBtnSize: CGFloat = isCompact ? 58 : 64
 
             ZStack {
-                // Audio-Reactive Fluid Mesh + Breathing Cover Background
-                FluidMeshBackgroundView(
-                    palette: palette,
-                    energy: player.audioEnergy,
-                    isPlaying: player.isPlaying
-                )
-                .ignoresSafeArea()
+                // Pure transparent obsidian background (independent of cover art)
+                Color.amyBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Top Bar: True Centered Switcher via ZStack + Left/Right Action Controls
-                    ZStack {
-                        // 1. Center Stage Switcher ("Песня" | "Текст") - Dead Center on Screen with Fluid Droplet Physics
+                    // Top Bar: Non-overlapping layout with Circular Down Arrow + Centered Liquid Glass Switcher + Right Action Controls
+                    HStack(alignment: .center, spacing: 8) {
+                        // 1. Left Dismiss: Circular Down Arrow (No text)
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            isPresented = false
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
+
+                        Spacer(minLength: 4)
+
+                        // 2. Center Stage Switcher ("Песня" | "Текст")
                         LiquidGlassSegmentedPicker(
                             selection: $stageMode,
                             items: FullPlayerCenterStageMode.allCases,
                             accentColor: .white,
                             label: \.rawValue
                         )
-                        .frame(width: 172, height: 34)
+                        .frame(width: 156, height: 34)
 
-                        // 2. Left ("Свернуть") and Right (aA + Очередь)
-                        HStack(alignment: .center) {
+                        Spacer(minLength: 4)
+
+                        // 3. Right Action Controls (aA + Очередь)
+                        HStack(spacing: 6) {
+                            if stageMode == .lyrics {
+                                Button {
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    isLyricsConfigOpen = true
+                                } label: {
+                                    Image(systemName: "textformat.size")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
+                            }
+
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                isPresented = false
+                                isQueueOpen = true
                             } label: {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "chevron.down")
-                                        .font(.system(size: 11, weight: .bold))
-                                    Text("Свернуть")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .lineLimit(1)
-                                        .fixedSize(horizontal: true, vertical: false)
+                                    Image(systemName: "list.bullet")
+                                        .font(.system(size: 13, weight: .bold))
+
+                                    let upcomingCount = max(0, player.queue.count - player.currentIndex - 1)
+                                    if upcomingCount > 0 {
+                                        Text("\(upcomingCount)")
+                                            .font(.system(size: 11, weight: .black, design: .rounded))
+                                            .lineLimit(1)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                            .foregroundStyle(.black)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1.5)
+                                            .background(.white, in: Capsule())
+                                    }
                                 }
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
+                                .frame(height: 36)
                             }
                             .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
-
-                            Spacer()
-
-                            HStack(spacing: 6) {
-                                if stageMode == .lyrics {
-                                    Button {
-                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                        isLyricsConfigOpen = true
-                                    } label: {
-                                        Image(systemName: "textformat.size")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .padding(8)
-                                    }
-                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
-                                }
-
-                                Button {
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    isQueueOpen = true
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "list.bullet")
-                                            .font(.system(size: 12, weight: .bold))
-
-                                        let upcomingCount = max(0, player.queue.count - player.currentIndex - 1)
-                                        if upcomingCount > 0 {
-                                            Text("\(upcomingCount)")
-                                                .font(.system(size: 11, weight: .black, design: .rounded))
-                                                .lineLimit(1)
-                                                .fixedSize(horizontal: true, vertical: false)
-                                                .foregroundStyle(.black)
-                                                .padding(.horizontal, 5)
-                                                .padding(.vertical, 1.5)
-                                                .background(.white, in: Capsule())
-                                        }
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 7)
-                                    .fixedSize(horizontal: true, vertical: false)
-                                }
-                                .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
-                            }
                         }
                     }
                     .padding(.horizontal, 16)
