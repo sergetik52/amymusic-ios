@@ -57,11 +57,46 @@ public struct RootTabView: View {
     }
 
     public var body: some View {
-        if #available(iOS 26.0, *) {
-            appleNativeLiquidGlassTabView
-        } else {
-            legacyLiquidGlassTabView
+        ZStack {
+            if #available(iOS 26.0, *) {
+                appleNativeLiquidGlassTabView
+            } else {
+                legacyLiquidGlassTabView
+            }
+
+            if let artistId = selectedArtistId {
+                ArtistDetailPageView(
+                    artistId: artistId,
+                    player: player,
+                    activeTab: $activeTab,
+                    onBack: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                            selectedArtistId = nil
+                        }
+                    },
+                    onOpenRelease: { rel in
+                        selectedRelease = rel
+                    },
+                    onOpenFullPlayer: {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                            isFullPlayerOpen = true
+                        }
+                    },
+                    onTriggerSearch: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                            selectedArtistId = nil
+                            activeTab = .wave
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                triggerSearchFocus = true
+                            }
+                        }
+                    }
+                )
+                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
+                .zIndex(10)
+            }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: selectedArtistId != nil)
     }
 
     // MARK: - Authentic Apple Liquid Glass TabView (iOS 26+ / WWDC 2025 Session 323)
@@ -267,26 +302,23 @@ public struct RootSheetsModifier: ViewModifier {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
-            .sheet(item: Binding(
-                get: { selectedArtistId.map { IdentifiableArtistId(id: $0) } },
-                set: { selectedArtistId = $0?.id }
-            )) { item in
-                ArtistDetailSheetView(
-                    artistId: item.id,
-                    player: player,
-                    onOpenRelease: { rel in
-                        selectedRelease = rel
-                    }
-                )
-            }
             .sheet(item: $selectedRelease) { release in
                 AlbumOrPlaylistSheetView(
                     release: release,
                     player: player,
                     onOpenArtist: { id in
-                        selectedArtistId = id
+                        selectedRelease = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            selectedArtistId = id
+                        }
+                    },
+                    onOpenFullPlayer: {
+                        isFullPlayerOpen = true
                     }
                 )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color.amyBackground)
             }
     }
 }
@@ -442,7 +474,7 @@ public struct NativeAppleLiquidGlassAccessory: View {
 
 public struct PhoneLiquidGlassMiniPlayer: View {
     @Bindable var player: AudioPlayerManager
-    var glassNamespace: Namespace.ID
+    var glassNamespace: Namespace.ID? = nil
     var isCompact: Bool = false
     var onOpenFull: () -> Void
 

@@ -114,12 +114,18 @@ public extension View {
         )
     }
 
-    /// Configures native navigation bar with Apple Liquid Glass material
+    /// Configures native navigation bar with transparent background and zero separator hairline
+    @ViewBuilder
     func appleLiquidGlassNavigationBar(tint: Color? = nil) -> some View {
-        self
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+        if #available(iOS 18.0, *) {
+            self
+                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+        } else {
+            self
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+        }
     }
 }
 
@@ -130,7 +136,7 @@ public struct AppleLiquidGlassTopBarModifier: ViewModifier {
     public var showBottomSeparator: Bool
     public var cornerRadius: CGFloat
 
-    public init(tintColor: Color? = nil, showBottomSeparator: Bool = true, cornerRadius: CGFloat = 0) {
+    public init(tintColor: Color? = nil, showBottomSeparator: Bool = false, cornerRadius: CGFloat = 0) {
         self.tintColor = tintColor
         self.showBottomSeparator = showBottomSeparator
         self.cornerRadius = cornerRadius
@@ -169,23 +175,6 @@ public struct AppleLiquidGlassTopBarModifier: ViewModifier {
                         .overlay {
                             if let tintColor {
                                 Rectangle().fill(tintColor.opacity(0.12))
-                            }
-                        }
-                        .overlay(alignment: .bottom) {
-                            if showBottomSeparator {
-                                Rectangle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                .white.opacity(0.0),
-                                                .white.opacity(0.20),
-                                                .white.opacity(0.0)
-                                            ],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(height: 0.8)
                             }
                         }
                 }

@@ -3,41 +3,46 @@ import SwiftUI
 // MARK: - Artist Detail View & Album/Playlist Detail View
 // Port of src/components/ArtistView.jsx & PlaylistView in CollectionView.jsx
 
-public struct ArtistDetailSheetView: View {
+// MARK: - Artist Detail Page View (Full separate page with TabBar and MiniPlayer)
+
+public struct ArtistDetailPageView: View {
     public var artistId: String
     @Bindable var player: AudioPlayerManager
+    @Binding var activeTab: AmyMobileTab
+    public var onBack: () -> Void
     public var onOpenRelease: (ReleaseItem) -> Void
-    public var isNested: Bool = false
-    @Environment(\.dismiss) private var dismiss
+    public var onOpenFullPlayer: () -> Void
+    public var onTriggerSearch: (() -> Void)? = nil
 
     @State private var profile: ArtistProfile? = nil
     @State private var isLoading: Bool = true
     @State private var showAllTracksSheet: Bool = false
     @State private var pushedRelease: ReleaseItem? = nil
-    @State private var pushedArtistId: String? = nil
 
-    public var body: some View {
-        if isNested {
-            artistContent
-        } else {
-            NavigationStack {
-                artistContent
-            }
-        }
+    private var topSafeInset: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes
+        let windowScene = scenes.first as? UIWindowScene
+        let window = windowScene?.windows.first
+        return max(window?.safeAreaInsets.top ?? 48, 48)
     }
 
-    @ViewBuilder
-    private var artistContent: some View {
-        ZStack {
+    public var body: some View {
+        ZStack(alignment: .top) {
             Color.amyBackground.ignoresSafeArea()
 
-                if isLoading {
+            if isLoading {
+                VStack {
+                    Spacer()
                     ProgressView("Загрузка артиста...")
                         .tint(.white)
                         .foregroundStyle(.white.opacity(0.6))
-                } else if let profile {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 26) {
+                    Spacer()
+                }
+            } else if let profile {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 26) {
+                        // Top spacing to let back button float directly over hero without obstruction
+                        Spacer().frame(height: topSafeInset + 44)
                             // Artist Hero Banner (Adaptive across iPhone 11 to 17 Pro Max)
                             VStack(spacing: 12) {
                                 let isCompact = UIScreen.main.bounds.width < 380
@@ -281,7 +286,17 @@ public struct ArtistDetailSheetView: View {
                                         HStack(spacing: 16) {
                                             ForEach(profile.relatedArtists) { relArtist in
                                                 Button {
-                                                    pushedArtistId = relArtist.id
+                                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                        isLoading = true
+                                                    }
+                                                    Task {
+                                                        let newProfile = await SoundCloudService.shared.fetchArtistProfile(artistId: relArtist.id)
+                                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                            self.profile = newProfile
+                                                            isLoading = false
+                                                        }
+                                                    }
                                                 } label: {
                                                     VStack(spacing: 8) {
                                                         AsyncImage(url: URL(string: relArtist.avatarUrl ?? "")) { img in
@@ -307,59 +322,92 @@ public struct ArtistDetailSheetView: View {
                                 }
                             }
 
-                            Spacer(minLength: 80)
-                        }
+                        // Space for floating bottom miniplayer + tabbar
+                        Spacer(minLength: 160)
                     }
-                } else {
+                }
+            } else {
+                VStack {
+                    Spacer()
                     ContentUnavailableView("Артист не найден", systemImage: "person.slash")
+                    Spacer()
                 }
             }
-            .navigationBarBackButtonHidden(false)
-            .appleLiquidGlassNavigationBar()
-            .toolbar {
-                if !isNested {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "xmark")
-                        }
-                    }
+
+            // Top Bar: Back Button directly on interface (No grey bar, no stripe)
+            HStack {
+                AppleLiquidGlassBackButton(title: "Назад") {
+                    onBack()
                 }
+                Spacer()
             }
-            .navigationDestination(item: $pushedRelease) { rel in
-                AlbumOrPlaylistSheetView(
-                    release: rel,
-                    player: player,
-                    onOpenArtist: { id in pushedArtistId = id },
-                    isNested: true
-                )
-            }
-            .navigationDestination(item: Binding(
-                get: { pushedArtistId.map { IdentifiableArtistId(id: $0) } },
-                set: { pushedArtistId = $0?.id }
-            )) { item in
-                ArtistDetailSheetView(
-                    artistId: item.id,
-                    player: player,
-                    onOpenRelease: onOpenRelease,
-                    isNested: true
-                )
-            }
-            .sheet(isPresented: $showAllTracksSheet) {
-                if let profile {
-                    AllArtistTracksSheetView(
-                        artistName: profile.name,
-                        tracks: profile.allTracks.isEmpty ? profile.popularTracks : profile.allTracks,
-                        player: player
+            .padding(.horizontal, 16)
+            .padding(.top, topSafeInset + 6)
+
+            // Bottom Stack: MiniPlayer + Navigation TabBar Dock
+            VStack(spacing: 8) {
+                Spacer()
+
+                if player.currentTrack != nil {
+                    PhoneLiquidGlassMiniPlayer(
+                        player: player,
+                        onOpenFull: onOpenFullPlayer
                     )
                 }
+
+                PhoneFloatingNavDock(
+                    activeTab: $activeTab,
+                    accentColor: Color(hex: player.settings.themePreset.primaryHex),
+                    onTriggerSearch: {
+                        onTriggerSearch?()
+                    }
+                )
             }
-            .task {
-                isLoading = true
-                profile = await SoundCloudService.shared.fetchArtistProfile(artistId: artistId)
-                isLoading = false
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+        }
+        .onChange(of: activeTab) { _, _ in
+            onBack()
+        }
+        .task {
+            isLoading = true
+            profile = await SoundCloudService.shared.fetchArtistProfile(artistId: artistId)
+            isLoading = false
+        }
+        .sheet(isPresented: $showAllTracksSheet) {
+            if let profile {
+                AllArtistTracksSheetView(
+                    artistName: profile.name,
+                    tracks: profile.allTracks.isEmpty ? profile.popularTracks : profile.allTracks,
+                    player: player
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
+}
+
+// Compatibility wrapper for ArtistDetailSheetView
+public struct ArtistDetailSheetView: View {
+    public var artistId: String
+    @Bindable var player: AudioPlayerManager
+    public var onOpenRelease: (ReleaseItem) -> Void
+    public var isNested: Bool = false
+    @Environment(\.dismiss) private var dismiss
+
+    public var body: some View {
+        ArtistDetailPageView(
+            artistId: artistId,
+            player: player,
+            activeTab: .constant(.wave),
+            onBack: { dismiss() },
+            onOpenRelease: onOpenRelease,
+            onOpenFullPlayer: {}
+        )
+    }
+}
 
 // MARK: - Album & Playlist Detail Sheet View (Port of AlbumView & PlaylistView)
 
@@ -367,6 +415,7 @@ public struct AlbumOrPlaylistSheetView: View {
     public var release: ReleaseItem
     @Bindable var player: AudioPlayerManager
     public var onOpenArtist: (String) -> Void
+    public var onOpenFullPlayer: (() -> Void)? = nil
     public var isNested: Bool = false
     @Environment(\.dismiss) private var dismiss
 
@@ -393,22 +442,24 @@ public struct AlbumOrPlaylistSheetView: View {
                player.savedReleases.contains(where: { $0.id == activeRelease.id })
     }
 
+    private var topButtonPadding: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes
+        let windowScene = scenes.first as? UIWindowScene
+        let window = windowScene?.windows.first
+        let safeTop = window?.safeAreaInsets.top ?? 20
+        return isNested ? (safeTop + 6) : 20
+    }
+
     public var body: some View {
-        if isNested {
-            albumContent
-        } else {
-            NavigationStack {
-                albumContent
-            }
-        }
+        albumContent
     }
 
     @ViewBuilder
     private var albumContent: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.amyBackground.ignoresSafeArea()
 
-                ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 22) {
                         // Blurred Cover Header + 200x200 Cover Art
                         ZStack {
@@ -453,7 +504,10 @@ public struct AlbumOrPlaylistSheetView: View {
 
                                 Button {
                                     if let artistId = activeRelease.artistId, !artistId.isEmpty {
-                                        pushedArtistId = artistId
+                                        dismiss()
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                            onOpenArtist(artistId)
+                                        }
                                     }
                                 } label: {
                                     HStack(spacing: 4) {
@@ -532,7 +586,10 @@ public struct AlbumOrPlaylistSheetView: View {
                                             player.playTrack(track, in: activeRelease.tracks)
                                         },
                                         onOpenArtist: { id in
-                                            pushedArtistId = id
+                                            dismiss()
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                                onOpenArtist(id)
+                                            }
                                         }
                                     )
                                 }
@@ -540,42 +597,59 @@ public struct AlbumOrPlaylistSheetView: View {
                             .padding(.horizontal, 14)
                         }
 
-                        Spacer(minLength: 80)
-                    }
-                }
-            }
-            .navigationBarBackButtonHidden(false)
-            .appleLiquidGlassNavigationBar()
-            .toolbar {
-                if !isNested {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "xmark")
-                        }
+                        Spacer(minLength: player.currentTrack != nil ? 110 : 50)
                     }
                 }
 
-                if isDeletablePlaylist {
-                    ToolbarItem(placement: .topBarTrailing) {
+                // Top Bar Buttons directly on interface (No grey bar, no stripe)
+                HStack {
+                    if !isNested {
+                        Button(action: { dismiss() }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
+                    } else {
+                        AppleLiquidGlassBackButton {
+                            dismiss()
+                        }
+                    }
+
+                    Spacer()
+
+                    if isDeletablePlaylist {
                         Button(role: .destructive) {
                             player.deleteUserPlaylist(id: activeRelease.id)
                             dismiss()
                         } label: {
-                            Label("Удалить", systemImage: "trash")
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.red)
+                                .frame(width: 36, height: 36)
                         }
+                        .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: .red.opacity(0.35)))
                     }
                 }
-            }
-            .navigationDestination(item: Binding(
-                get: { pushedArtistId.map { IdentifiableArtistId(id: $0) } },
-                set: { pushedArtistId = $0?.id }
-            )) { item in
-                ArtistDetailSheetView(
-                    artistId: item.id,
-                    player: player,
-                    onOpenRelease: { _ in },
-                    isNested: true
-                )
+                .padding(.horizontal, 16)
+                .padding(.top, topButtonPadding)
+
+                // Bottom MiniPlayer: ONLY miniplayer, no tabbar
+                if player.currentTrack != nil {
+                    VStack {
+                        Spacer()
+                        PhoneLiquidGlassMiniPlayer(
+                            player: player,
+                            onOpenFull: {
+                                onOpenFullPlayer?()
+                            }
+                        )
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 16)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .task {
                 let needsHydration = release.tracks.isEmpty ||

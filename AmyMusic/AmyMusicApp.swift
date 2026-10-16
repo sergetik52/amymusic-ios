@@ -6,6 +6,17 @@ import SwiftUI
 struct AmyMusicApp: App {
     @State private var player = AudioPlayerManager.shared
 
+    init() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.shadowColor = .clear
+        appearance.shadowImage = UIImage()
+        appearance.backgroundColor = .clear
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+    }
+
     var body: some Scene {
         WindowGroup {
             RootTabView(player: player)
