@@ -1,6 +1,84 @@
 import SwiftUI
 import AVKit
 
+// MARK: - Active Audio & Bluetooth Route Tracker
+@Observable
+@MainActor
+public final class AudioRouteTracker {
+    public static let shared = AudioRouteTracker()
+
+    public var currentDeviceName: String = "Динамик iPhone"
+    public var currentDeviceIcon: String = "iphone"
+    public var isBluetoothOrAirPlay: Bool = false
+
+    private init() {
+        updateRoute()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleRouteChange(notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.updateRoute()
+        }
+    }
+
+    public func updateRoute() {
+        let route = AVAudioSession.sharedInstance().currentRoute
+        guard let output = route.outputs.first else {
+            currentDeviceName = "Динамик iPhone"
+            currentDeviceIcon = "iphone"
+            isBluetoothOrAirPlay = false
+            return
+        }
+
+        let portType = output.portType
+        let portName = output.portName
+
+        switch portType {
+        case .bluetoothA2DP, .bluetoothHFP, .bluetoothLE:
+            isBluetoothOrAirPlay = true
+            currentDeviceName = portName
+            let lower = portName.lowercased()
+            if lower.contains("max") {
+                currentDeviceIcon = "airpodsmax"
+            } else if lower.contains("pro") {
+                currentDeviceIcon = "airpodspro"
+            } else if lower.contains("airpod") {
+                currentDeviceIcon = "airpods"
+            } else if lower.contains("beats") {
+                currentDeviceIcon = "beats.headphones"
+            } else {
+                currentDeviceIcon = "headphones"
+            }
+
+        case .airPlay:
+            isBluetoothOrAirPlay = true
+            currentDeviceName = portName
+            currentDeviceIcon = "airplayaudio"
+
+        case .headphones:
+            isBluetoothOrAirPlay = true
+            currentDeviceName = portName.isEmpty ? "Наушники" : portName
+            currentDeviceIcon = "headphones"
+
+        case .builtInSpeaker, .builtInReceiver:
+            isBluetoothOrAirPlay = false
+            currentDeviceName = "Динамик iPhone"
+            currentDeviceIcon = "iphone"
+
+        default:
+            isBluetoothOrAirPlay = false
+            currentDeviceName = portName.isEmpty ? "Динамик iPhone" : portName
+            currentDeviceIcon = "speaker.wave.2.fill"
+        }
+    }
+}
+
 // MARK: - Full Player Overlay, Synced Lyrics Engine, Lyrics Context Menu, Queue Sheet & 10-Band Equalizer
 // Port of src/components/FullPlayerOverlay.jsx, src/components/LyricsContextMenu.jsx & src/components/EqualizerModal.jsx
 
@@ -23,6 +101,7 @@ public struct FullPlayerOverlayView: View {
     @State private var isScrubbing: Bool = false
     @State private var scrubTime: TimeInterval = 0
     @State private var dragDismissOffset: CGFloat = 0
+    @State private var routeTracker = AudioRouteTracker.shared
 
     private var safeTopInset: CGFloat {
         let window = UIApplication.shared.connectedScenes
@@ -94,57 +173,54 @@ public struct FullPlayerOverlayView: View {
 
                         Spacer(minLength: 4)
 
-                        // 2. Center Stage Switcher ("Песня" | "Текст")
-                        Picker("Режим плеера", selection: $stageMode) {
-                            ForEach(FullPlayerCenterStageMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
+                        // 2. Active Audio / Bluetooth Route Indicator (Tapping opens AirPlay / Bluetooth picker)
+                        ZStack {
+                            HStack(spacing: 6) {
+                                Image(systemName: routeTracker.currentDeviceIcon)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(routeTracker.isBluetoothOrAirPlay ? Color(hex: "#007AFF") : .white.opacity(0.85))
+
+                                Text(routeTracker.currentDeviceName)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
                             }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .amyLiquidGlass(
+                                in: Capsule(),
+                                tint: routeTracker.isBluetoothOrAirPlay ? Color(hex: "#007AFF").opacity(0.22) : nil,
+                                interactive: true
+                            )
+
+                            // Invisible AirPlay picker button overlay so tapping opens route selector
+                            AirPlayRoutePickerButton()
+                                .frame(height: 36)
+                                .opacity(0.015)
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 164)
+                        .frame(maxWidth: 220)
 
                         Spacer(minLength: 4)
 
-                        // 3. Right Action Controls (aA + Очередь)
-                        HStack(spacing: 6) {
+                        // 3. Right Action Controls (Lyrics Settings when in lyrics mode, symmetrical balance)
+                        Group {
                             if stageMode == .lyrics {
                                 Button {
                                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                     isLyricsConfigOpen = true
                                 } label: {
                                     Image(systemName: "textformat.size")
-                                        .font(.system(size: 13, weight: .bold))
+                                        .font(.system(size: 14, weight: .bold))
                                         .foregroundStyle(.white)
-                                        .frame(width: 36, height: 36)
+                                        .frame(width: 42, height: 42)
+                                        .contentShape(Circle())
                                 }
                                 .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle()))
+                            } else {
+                                Color.clear
+                                    .frame(width: 42, height: 42)
                             }
-
-                            Button {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                isQueueOpen = true
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "list.bullet")
-                                        .font(.system(size: 13, weight: .bold))
-
-                                    let upcomingCount = max(0, player.queue.count - player.currentIndex - 1)
-                                    if upcomingCount > 0 {
-                                        Text("\(upcomingCount)")
-                                            .font(.system(size: 11, weight: .black, design: .rounded))
-                                            .lineLimit(1)
-                                            .fixedSize(horizontal: true, vertical: false)
-                                            .foregroundStyle(.black)
-                                            .padding(.horizontal, 5)
-                                            .padding(.vertical, 1.5)
-                                            .background(.white, in: Capsule())
-                                    }
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .frame(height: 36)
-                            }
-                            .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule()))
                         }
                     }
                     .padding(.horizontal, 16)
@@ -356,7 +432,7 @@ public struct FullPlayerOverlayView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 2)
 
-                        // Bottom Utility Row: Repeat, AirPlay, Queue, Shuffle
+                        // Bottom Utility Row: Repeat, AirPlay, Lyrics Toggle (Center), Queue, Shuffle
                         HStack(alignment: .center) {
                             Button {
                                 player.cycleRepeatMode()
@@ -374,6 +450,26 @@ public struct FullPlayerOverlayView: View {
                                 .frame(width: 22, height: 22)
                                 .frame(width: 42, height: 42)
                                 .amyLiquidGlass(in: Circle(), interactive: true)
+
+                            Spacer()
+
+                            // Center Lyrics Toggle Button (shows lyrics on tap, shows cover on second tap)
+                            Button {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                                    stageMode = (stageMode == .lyrics) ? .song : .lyrics
+                                }
+                            } label: {
+                                Image(systemName: stageMode == .lyrics ? "quote.bubble.fill" : "quote.bubble")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(stageMode == .lyrics ? .white : .white.opacity(0.70))
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(AppleLiquidGlassButtonStyle(
+                                shape: Circle(),
+                                tintColor: stageMode == .lyrics ? Color(hex: player.settings.themePreset.primaryHex).opacity(0.40) : nil,
+                                isFilledAccent: stageMode == .lyrics
+                            ))
 
                             Spacer()
 
