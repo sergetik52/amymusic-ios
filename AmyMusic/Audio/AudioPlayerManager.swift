@@ -169,7 +169,11 @@ public final class AudioPlayerManager {
                     self.currentTime = secs
 
                     if let itemDur = player.currentItem?.duration.seconds, itemDur.isFinite && itemDur > 0 {
+                        let diff = abs(self.duration - itemDur)
                         self.duration = itemDur
+                        if diff > 1.5 {
+                            self.updateNowPlayingInfo()
+                        }
                     }
 
                     // Check crossfade trigger (1-12s before end)
@@ -298,6 +302,18 @@ public final class AudioPlayerManager {
             info[MPMediaItemPropertyGenre] = genre
         }
 
+        // Check if artwork is already in cache for instant display
+        var artworkApplied = false
+        if let coverUrlStr = track.coverUrl, let url = URL(string: coverUrlStr) {
+            let request = URLRequest(url: url)
+            if let cached = URLCache.shared.cachedResponse(for: request),
+               let cachedImg = UIImage(data: cached.data) {
+                let artwork = MPMediaItemArtwork(boundsSize: cachedImg.size) { _ in cachedImg }
+                info[MPMediaItemPropertyArtwork] = artwork
+                artworkApplied = true
+            }
+        }
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
         // Sync Lock Screen & Dynamic Island Like State
@@ -309,16 +325,18 @@ public final class AudioPlayerManager {
         center.dislikeCommand.isEnabled = true
         center.dislikeCommand.localizedTitle = "Не нравится"
 
-        if let coverUrlStr = track.coverUrl, let url = URL(string: coverUrlStr) {
-            Task.detached {
-                if let (data, _) = try? await URLSession.shared.data(from: url),
+        if !artworkApplied, let coverUrlStr = track.coverUrl, let url = URL(string: coverUrlStr) {
+            let targetId = track.id
+            let request = URLRequest(url: url)
+            Task {
+                if let (data, response) = try? await URLSession.shared.data(for: request),
                    let image = UIImage(data: data) {
+                    URLCache.shared.storeCachedResponse(CachedURLResponse(response: response, data: data), for: request)
+                    guard self.currentTrack?.id == targetId else { return }
                     let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                    await MainActor.run {
-                        var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                        current[MPMediaItemPropertyArtwork] = artwork
-                        MPNowPlayingInfoCenter.default().nowPlayingInfo = current
-                    }
+                    var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                    current[MPMediaItemPropertyArtwork] = artwork
+                    MPNowPlayingInfoCenter.default().nowPlayingInfo = current
                 }
             }
         }
@@ -442,12 +460,15 @@ public final class AudioPlayerManager {
         if !useCrossfade {
             crossfadeTask?.cancel()
             isCrossfading = false
-            didTriggerCrossfadeForCurrentTrack = false
         }
+        didTriggerCrossfadeForCurrentTrack = false
         isLoading = true
         currentTrack = track
         currentTime = 0
         duration = track.duration
+
+        // Immediately update Lock Screen, Control Center, Dynamic Island & Apple Watch
+        updateNowPlayingInfo()
 
         // Record in play history
         playHistory.removeAll { $0.id == track.id }
@@ -513,6 +534,7 @@ public final class AudioPlayerManager {
             activeEngineIdx = targetIdx
             isPlaying = true
             isLoading = false
+            updateNowPlayingInfo()
 
             let fadeSeconds = max(1.0, settings.crossfadeSeconds)
             let steps = 20
@@ -530,6 +552,7 @@ public final class AudioPlayerManager {
                 outgoing.replaceCurrentItem(with: nil)
                 incoming.volume = self.volume
                 self.isCrossfading = false
+                self.updateNowPlayingInfo()
             }
         } else {
             let otherIdx = 1 - activeEngineIdx
