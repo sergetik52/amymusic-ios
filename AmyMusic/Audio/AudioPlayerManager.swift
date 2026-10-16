@@ -276,6 +276,15 @@ public final class AudioPlayerManager {
         }
     }
 
+    nonisolated private static func createMediaArtwork(from image: UIImage) -> MPMediaItemArtwork {
+        let size = image.size
+        let validSize = CGSize(
+            width: max(1, size.width),
+            height: max(1, size.height)
+        )
+        return MPMediaItemArtwork(boundsSize: validSize) { _ in image }
+    }
+
     private func updateNowPlayingInfo() {
         guard let track = currentTrack else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -308,7 +317,7 @@ public final class AudioPlayerManager {
             let request = URLRequest(url: url)
             if let cached = URLCache.shared.cachedResponse(for: request),
                let cachedImg = UIImage(data: cached.data) {
-                let artwork = MPMediaItemArtwork(boundsSize: cachedImg.size) { _ in cachedImg }
+                let artwork = Self.createMediaArtwork(from: cachedImg)
                 info[MPMediaItemPropertyArtwork] = artwork
                 artworkApplied = true
             }
@@ -333,7 +342,7 @@ public final class AudioPlayerManager {
                    let image = UIImage(data: data) {
                     URLCache.shared.storeCachedResponse(CachedURLResponse(response: response, data: data), for: request)
                     guard self.currentTrack?.id == targetId else { return }
-                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                    let artwork = Self.createMediaArtwork(from: image)
                     var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                     current[MPMediaItemPropertyArtwork] = artwork
                     MPNowPlayingInfoCenter.default().nowPlayingInfo = current
