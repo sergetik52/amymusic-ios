@@ -36,6 +36,13 @@ public actor SoundCloudService {
         "dreamy": ["dream", "space", "cloud", "float", "angel", "ethereal", "stars", "heaven"]
     ]
 
+    private var settings: AppProfileSettings = AppProfileSettings()
+
+    public func updateSettings(_ settings: AppProfileSettings) {
+        self.settings = settings
+        self.updateClientId(settings.soundCloudClientId)
+    }
+
     public func updateClientId(_ clientId: String?) {
         let trimmed = clientId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         self.customClientId = trimmed.isEmpty ? nil : trimmed
@@ -48,7 +55,11 @@ public actor SoundCloudService {
     // MARK: - Core Request Builder
 
     private func requestJSON(path: String, queryItems: [URLQueryItem] = []) async throws -> Any {
-        var components = URLComponents(string: path.hasPrefix("http") ? path : "\(baseURL)\(path)")
+        guard let (transformedUrl, activeHost) = SoundCloudProxyManager.shared.transformUrl(pathOrUrl: path, settings: self.settings) else {
+            throw URLError(.badURL)
+        }
+
+        var components = URLComponents(url: transformedUrl, resolvingAgainstBaseURL: false)
         var items = components?.queryItems ?? []
         if !items.contains(where: { $0.name == "client_id" }) {
             items.append(URLQueryItem(name: "client_id", value: activeClientId))
@@ -60,17 +71,21 @@ public actor SoundCloudService {
             throw URLError(.badURL)
         }
 
-        var request = URLRequest(url: url)
+        var request = SoundCloudProxyManager.shared.prepareRequest(url: url, settings: self.settings)
         request.timeoutInterval = 14
-        request.setValue("https://soundcloud.com", forHTTPHeaderField: "Origin")
-        request.setValue("https://soundcloud.com/", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
+        do {
+            let session = SoundCloudProxyManager.shared.session(for: self.settings)
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                SoundCloudProxyManager.shared.reportFailure(host: activeHost, settings: self.settings)
+                throw URLError(.badServerResponse)
+            }
+            return try JSONSerialization.jsonObject(with: data)
+        } catch {
+            SoundCloudProxyManager.shared.reportFailure(host: activeHost, settings: self.settings)
+            throw error
         }
-        return try JSONSerialization.jsonObject(with: data)
     }
 
     // MARK: - Search Endpoints
@@ -148,30 +163,49 @@ public actor SoundCloudService {
     // MARK: - Stream Resolution & Snippet Workaround
 
     public func resolveStreamUrl(for track: Track, quality: AudioQualityTier = .q320) async -> (url: String, isHls: Bool)? {
-        // If track is a 30s Go+ snippet, try searching for a full non-snippet replacement first
+        // If track is a 30s Go+ snippet or DRM-encrypted, try searching for a full non-snippet playable replacement first
         if track.isSnippet {
-            let candidates = await searchTracks(query: "\(track.artist) \(track.title)", limit: 6)
+            let query = "\(track.artist) \(track.title)".trimmingCharacters(in: .whitespacesAndNewlines)
+            let candidates = await searchTracks(query: query, limit: 10)
             if let replacement = candidates.first(where: { !$0.isSnippet && $0.duration > 45 }),
-               let transcoding = replacement.transcodingUrl {
+               let transcoding = replacement.transcodingUrl,
+               !transcoding.contains("encrypted") {
                 if let resolved = await fetchTranscodingUrl(transcoding) {
-                    return (resolved, replacement.isHls || resolved.contains(".m3u8"))
+                    let proxied = SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(resolved, settings: self.settings) ?? resolved
+                    return (proxied, replacement.isHls || resolved.contains(".m3u8"))
+                }
+            }
+            if !track.title.isEmpty {
+                let candidatesByTitle = await searchTracks(query: track.title, limit: 10)
+                if let replacement = candidatesByTitle.first(where: { !$0.isSnippet && $0.duration > 45 }),
+                   let transcoding = replacement.transcodingUrl,
+                   !transcoding.contains("encrypted") {
+                    if let resolved = await fetchTranscodingUrl(transcoding) {
+                        let proxied = SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(resolved, settings: self.settings) ?? resolved
+                        return (proxied, replacement.isHls || resolved.contains(".m3u8"))
+                    }
                 }
             }
         }
 
         if let transcoding = track.transcodingUrl,
+           !transcoding.contains("encrypted"),
            let resolved = await fetchTranscodingUrl(transcoding) {
             let isHls = track.isHls || resolved.contains(".m3u8") || resolved.contains("/hls/")
-            return (resolved, isHls)
+            let proxied = SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(resolved, settings: self.settings) ?? resolved
+            return (proxied, isHls)
         }
 
         // Refetch fresh track object by ID if transcoding expired
         let cleanId = track.rawId.replacingOccurrences(of: "sc_", with: "")
         if let json = try? await requestJSON(path: "/tracks/\(cleanId)") as? [String: Any],
            let refreshed = normalizeTrack(json, preferredQuality: quality),
+           !refreshed.isSnippet,
            let transcoding = refreshed.transcodingUrl,
+           !transcoding.contains("encrypted"),
            let resolved = await fetchTranscodingUrl(transcoding) {
-            return (resolved, refreshed.isHls || resolved.contains(".m3u8"))
+            let proxied = SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(resolved, settings: self.settings) ?? resolved
+            return (proxied, refreshed.isHls || resolved.contains(".m3u8"))
         }
 
         return nil
@@ -732,28 +766,43 @@ public actor SoundCloudService {
 
         let fullDurationMs = (raw["full_duration"] as? Double) ?? (raw["duration"] as? Double) ?? 0
         let durationMs = (raw["duration"] as? Double) ?? fullDurationMs
-        let isSnippet = fullDurationMs > 45_000 && durationMs <= 35_000
 
         let artwork = upgradeArtworkUrl((raw["artwork_url"] as? String) ?? (userDict?["avatar_url"] as? String))
 
-        // Select transcoding
+        // Select transcoding: strictly filter out FairPlay/Widevine encrypted streams
         let media = raw["media"] as? [String: Any]
         let transcodings = (media?["transcodings"] as? [[String: Any]]) ?? []
         let nonSnipped = transcodings.filter { ($0["snipped"] as? Bool) != true }
-        let pool = nonSnipped.isEmpty ? transcodings : nonSnipped
+
+        let unencryptedPool = (nonSnipped.isEmpty ? transcodings : nonSnipped).filter { item in
+            let proto = ((item["format"] as? [String: Any])?["protocol"] as? String)?.lowercased() ?? ""
+            return !proto.contains("encrypted")
+        }
+
+        let isDrmEncrypted = unencryptedPool.isEmpty
+        let isSnippet = (fullDurationMs > 45_000 && durationMs <= 35_000) || isDrmEncrypted
+
+        let pool = unencryptedPool.isEmpty ? (nonSnipped.isEmpty ? transcodings : nonSnipped) : unencryptedPool
 
         let chosenTranscoding: [String: Any]? = {
-            switch preferredQuality {
-            case .q1411, .q320:
-                return pool.first(where: { ($0["quality"] as? String) == "hq" })
-                    ?? pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.contains("progressive") == true })
-                    ?? pool.first
-            case .q192:
-                return pool.first(where: { ($0["quality"] as? String) == "sq" }) ?? pool.first
-            case .q256:
-                return pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.contains("progressive") == true })
-                    ?? pool.first
+            // First priority: unencrypted HLS 160k (standard SoundCloud high quality audio)
+            if let hls160 = pool.first(where: {
+                let preset = ($0["preset"] as? String) ?? ""
+                let proto = (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased() ?? ""
+                return proto == "hls" && preset.contains("160")
+            }) {
+                return hls160
             }
+            // Second priority: unencrypted progressive mp3
+            if let prog = pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased().contains("progressive") == true }) {
+                return prog
+            }
+            // Third priority: any unencrypted standard HLS
+            if let hlsAny = pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased() == "hls" }) {
+                return hlsAny
+            }
+            // Fallback
+            return pool.first
         }()
 
         let transcodingUrl = chosenTranscoding?["url"] as? String
@@ -818,10 +867,11 @@ public actor SoundCloudService {
 
     private func upgradeArtworkUrl(_ url: String?) -> String? {
         guard let url, !url.isEmpty else { return nil }
-        return url
+        let highRes = url
             .replacingOccurrences(of: "-large.", with: "-t500x500.")
             .replacingOccurrences(of: "-t300x300.", with: "-t500x500.")
             .replacingOccurrences(of: "-badge.", with: "-t500x500.")
+        return SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(highRes, settings: self.settings)
     }
 
     /// Cleans junk tags, extracts feat/ft/with artists from title & artist, keeps creator as primary target

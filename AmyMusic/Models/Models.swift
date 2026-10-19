@@ -524,6 +524,12 @@ public struct AppProfileSettings: Codable, Equatable, Sendable {
     public var soundCloudClientSecret: String = ""
     public var customHttpProxies: String = ""
     public var yandexOAuthToken: String = ""
+
+    // Anti-Blocking / Cloudflare Reverse Proxy (TGWS-style)
+    public var soundCloudProxyEnabled: Bool = true
+    public var soundCloudProxySelectedDomain: String = "ios.amymusic.ru"
+    public var soundCloudProxyCustomDomain: String = "ios.amymusic.ru"
+    public var soundCloudProxyAutoFallback: Bool = true
 }
 
 public struct IdentifiableArtistId: Identifiable, Hashable, Sendable {

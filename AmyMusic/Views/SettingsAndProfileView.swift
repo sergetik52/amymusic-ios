@@ -87,6 +87,8 @@ public struct SettingsAndProfileView: View {
 
     @State private var activeSection: SettingsSectionTab = .profile
     @State private var isAvatarCropperOpen: Bool = false
+    @State private var testProxyStatus: String? = nil
+    @State private var isTestingProxy: Bool = false
 
     public var body: some View {
         NavigationStack {
@@ -311,59 +313,224 @@ public struct SettingsAndProfileView: View {
     // MARK: - 3. Integrations / Developer Tab
 
     private var integrationsTabContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("SoundCloud API v2 & Yandex Music")
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(.white)
+        VStack(spacing: 16) {
+            // MARK: - Proxy & Anti-Blocking
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                    Text("Прокси и обход блокировок")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundStyle(.white)
+                }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("SoundCloud Client ID")
-                    .font(.system(size: 12, weight: .bold))
+                Text("Маршрутизация запросов к SoundCloud через ваш личный прокси или встроенное зеркало. Позволяет слушать музыку в РФ без VPN.")
+                    .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.6))
-                TextField("Client ID", text: $player.settings.soundCloudClientId)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .padding(12)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                    .onChange(of: player.settings.soundCloudClientId) { _, _ in
-                        player.persistState()
-                    }
-            }
+                    .lineSpacing(2)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Yandex Music OAuth Token (опционально для Персональной Ротор-волны)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
-                SecureField("y0_AgAAAA...", text: $player.settings.yandexOAuthToken)
-                    .font(.system(size: 13, design: .monospaced))
+                Toggle("Включить обход / прокси", isOn: $player.settings.soundCloudProxyEnabled)
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(12)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                    .onChange(of: player.settings.yandexOAuthToken) { _, _ in
-                        player.persistState()
+                    .toggleStyle(.appleLiquidGlass)
+                    .onChange(of: player.settings.soundCloudProxyEnabled) { _, _ in
+                        player.persistSettings()
                     }
-            }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("HTTP Прокси (через запятую)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
-                TextField("ip:port, ip:port", text: $player.settings.customHttpProxies)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .padding(12)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                    .onChange(of: player.settings.customHttpProxies) { _, _ in
-                        player.persistState()
+                if player.settings.soundCloudProxyEnabled {
+                    // MARK: Personal Proxy Input (login:password@ip:port)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Личный прокси (HTTP / SOCKS5)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.75))
+
+                            Spacer()
+
+                            if let clip = UIPasteboard.general.string, !clip.isEmpty {
+                                Button {
+                                    player.settings.customHttpProxies = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    player.persistSettings()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "doc.on.clipboard")
+                                        Text("Вставить")
+                                    }
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            TextField("login:password@ip:port", text: $player.settings.customHttpProxies)
+                                .font(.system(size: 13, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .onChange(of: player.settings.customHttpProxies) { _, _ in
+                                    player.persistSettings()
+                                }
+
+                            if !player.settings.customHttpProxies.isEmpty {
+                                Button {
+                                    player.settings.customHttpProxies = ""
+                                    player.persistSettings()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.white.opacity(0.5))
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+
+                        // Real-time parsed proxy status badge
+                        let rawProxy = player.settings.customHttpProxies.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let parsed = SoundCloudProxyManager.ParsedProxyConfig.parse(rawProxy)
+
+                        if !rawProxy.isEmpty {
+                            if let parsed = parsed, parsed.isForwardProxy {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.green)
+                                    Text(parsed.statusDescription)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.green)
+                                }
+                                .padding(.top, 2)
+                            } else {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.orange)
+                                    Text("Форматы: login:pass@ip:port или ip:port:login:pass")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.orange)
+                                }
+                                .padding(.top, 2)
+                            }
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "globe.europe.africa.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.cyan)
+                                Text("Личный прокси не задан. Используется зеркало \(SoundCloudProxyManager.defaultProxyHost)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            }
+                            .padding(.top, 2)
+                        }
                     }
+
+                    // MARK: Mirror domain fallback (optional)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Зеркало API / Cloudflare Worker (резерв)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.6))
+
+                        TextField("например: ios.amymusic.ru", text: $player.settings.soundCloudProxyCustomDomain)
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .padding(12)
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                            .onChange(of: player.settings.soundCloudProxyCustomDomain) { _, _ in
+                                player.persistSettings()
+                            }
+                    }
+
+                    // MARK: Test connection button
+                    Button {
+                        player.persistSettings()
+                        isTestingProxy = true
+                        testProxyStatus = nil
+                        Task {
+                            let res = await SoundCloudProxyManager.shared.testConnection(settings: player.settings)
+                            isTestingProxy = false
+                            if res.success {
+                                testProxyStatus = "✓ Соединение успешно (\(res.latencyMs) мс)"
+                            } else {
+                                testProxyStatus = "⚠️ \(res.error ?? "Не удалось подключиться")"
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isTestingProxy {
+                                ProgressView()
+                                    .tint(.white)
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "bolt.horizontal.fill")
+                            }
+                            Text(isTestingProxy ? "Проверка соединения..." : "Проверить связь с SoundCloud")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                    }
+                    .disabled(isTestingProxy)
+
+                    if let status = testProxyStatus {
+                        HStack(spacing: 6) {
+                            Image(systemName: status.contains("✓") ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                .font(.system(size: 13))
+                            Text(status)
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundStyle(status.contains("✓") ? .green : .orange)
+                        .padding(.top, 2)
+                    }
+                }
             }
+            .padding(18)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            // MARK: - Standard SoundCloud & Yandex
+            VStack(alignment: .leading, spacing: 14) {
+                Text("SoundCloud API v2 & Yandex Music")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(.white)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("SoundCloud Client ID")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                    TextField("Client ID", text: $player.settings.soundCloudClientId)
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .padding(12)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                        .onChange(of: player.settings.soundCloudClientId) { _, _ in
+                            player.persistState()
+                        }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Yandex Music OAuth Token (опционально для Персональной Ротор-волны)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                    SecureField("y0_AgAAAA...", text: $player.settings.yandexOAuthToken)
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                        .onChange(of: player.settings.yandexOAuthToken) { _, _ in
+                            player.persistState()
+                        }
+                }
+            }
+            .padding(18)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
-        .padding(18)
-        .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 

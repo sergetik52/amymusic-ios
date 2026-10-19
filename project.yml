@@ -8,6 +8,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    DEVELOPMENT_TEAM: M5LW4HM9AJ
+    CODE_SIGN_STYLE: Automatic
 targets:
   AmyMusic:
     type: application
@@ -27,6 +29,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.amymusic.ios
+        DEVELOPMENT_TEAM: M5LW4HM9AJ
+        CODE_SIGN_STYLE: Automatic
         INFOPLIST_FILE: AmyMusic/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -49,4 +53,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.amymusic.ios.widget
+        DEVELOPMENT_TEAM: M5LW4HM9AJ
+        CODE_SIGN_STYLE: Automatic
         INFOPLIST_FILE: AmyMusicWidget/Info.plist
