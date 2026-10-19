@@ -34,7 +34,7 @@ public struct ArtistDetailPageView: View {
 
                 if let profile {
                     GeometryReader { geo in
-                        AsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
+                        AmyAsyncImage(url: URL(string: profile.bannerUrl ?? profile.avatarUrl ?? "")) { img in
                             img.resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(width: geo.size.width, height: geo.size.height)
@@ -78,7 +78,7 @@ public struct ArtistDetailPageView: View {
                                 let isCompact = UIScreen.main.bounds.width < 380
                                 let avatarDim: CGFloat = isCompact ? 116 : 136
 
-                                AsyncImage(url: URL(string: profile.avatarUrl ?? "")) { img in
+                                AmyAsyncImage(url: URL(string: profile.avatarUrl ?? "")) { img in
                                     img.resizable().scaledToFill()
                                 } placeholder: {
                                     Circle().fill(Color.white.opacity(0.12))
@@ -189,7 +189,7 @@ public struct ArtistDetailPageView: View {
                                         onOpenRelease(latest)
                                     } label: {
                                         HStack(spacing: 14) {
-                                            AsyncImage(url: URL(string: latest.coverUrl ?? "")) { img in
+                                            AmyAsyncImage(url: URL(string: latest.coverUrl ?? "")) { img in
                                                 img.resizable().scaledToFill()
                                             } placeholder: {
                                                 Color.white.opacity(0.10)
@@ -321,7 +321,7 @@ public struct ArtistDetailPageView: View {
                                                     }
                                                 } label: {
                                                     VStack(spacing: 8) {
-                                                        AsyncImage(url: URL(string: relArtist.avatarUrl ?? "")) { img in
+                                                        AmyAsyncImage(url: URL(string: relArtist.avatarUrl ?? "")) { img in
                                                             img.resizable().scaledToFill()
                                                         } placeholder: {
                                                             Circle().fill(Color.white.opacity(0.12))
@@ -477,7 +477,7 @@ public struct AlbumOrPlaylistSheetView: View {
                     VStack(spacing: 22) {
                         // Blurred Cover Header + 200x200 Cover Art
                         ZStack {
-                            AsyncImage(url: URL(string: activeRelease.coverUrl ?? "")) { img in
+                            AmyAsyncImage(url: URL(string: activeRelease.coverUrl ?? "")) { img in
                                 img.resizable().scaledToFill()
                             } placeholder: {
                                 Color.white.opacity(0.12)
@@ -492,7 +492,7 @@ public struct AlbumOrPlaylistSheetView: View {
                                 Button {
                                     isCoverLightboxOpen = true
                                 } label: {
-                                    AsyncImage(url: URL(string: activeRelease.coverUrl ?? "")) { img in
+                                    AmyAsyncImage(url: URL(string: activeRelease.coverUrl ?? "")) { img in
                                         img.resizable().scaledToFill()
                                     } placeholder: {
                                         Color.white.opacity(0.12)

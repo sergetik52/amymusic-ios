@@ -30,6 +30,7 @@
 		B548230A9532674B379FF416 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F152B9575EFCCF037F49D08E /* LyricsService.swift */; };
 		C2E95FB9E2AF18CECF0C0C65 /* FullPlayerOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9A755E3AC5D53058596393 /* FullPlayerOverlayView.swift */; };
 		D222A0BF436D91B4E7334898 /* AmyMusicWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C176B11DE13CBE8AECF3740 /* AmyMusicWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E1072EA7E1ABBE1B40047F86 /* ImageCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B591AB1D60B344C1C6C5F1AE /* ImageCacheManager.swift */; };
 		E8E3A5FA80FCA55C7C5FA9D0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5EC3D130D60E07A97299BEC1 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -75,6 +76,7 @@
 		74490FCCF4A9A7BC6E6C5F3A /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		984360EA7BE09BBE5B0F44C9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		986297B2447B1876270AD1C1 /* SoundCloudProxyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundCloudProxyManager.swift; sourceTree = "<group>"; };
+		B591AB1D60B344C1C6C5F1AE /* ImageCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCacheManager.swift; sourceTree = "<group>"; };
 		C94D72C7CD4865CF889886EE /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		C96C628766410CFFC2B76CD1 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		D17E5ECDCABC6E4028B128CC /* TrendsChartsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsChartsView.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 		4A0EA01A39513FA96D21F387 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B591AB1D60B344C1C6C5F1AE /* ImageCacheManager.swift */,
 				F152B9575EFCCF037F49D08E /* LyricsService.swift */,
 				986297B2447B1876270AD1C1 /* SoundCloudProxyManager.swift */,
 				6CBB612A269CE3A2A5B6A951 /* SoundCloudService.swift */,
@@ -292,6 +295,7 @@
 				A66C128182AD7EC4A00B8C04 /* CollectionView.swift in Sources */,
 				C2E95FB9E2AF18CECF0C0C65 /* FullPlayerOverlayView.swift in Sources */,
 				35638E9349DBBE319787B590 /* HomeWaveView.swift in Sources */,
+				E1072EA7E1ABBE1B40047F86 /* ImageCacheManager.swift in Sources */,
 				0ACBE2A71E6635E3F6D27320 /* LiquidGlassTheme.swift in Sources */,
 				B548230A9532674B379FF416 /* LyricsService.swift in Sources */,
 				39F7B1D83E96D2B229432BAE /* MiniKaraokeFloatingOverlay.swift in Sources */,

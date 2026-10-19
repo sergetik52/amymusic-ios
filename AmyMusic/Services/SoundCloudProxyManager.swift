@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 // MARK: - Native SoundCloud Proxy & Anti-Blocking Manager
 // Supports Personal Forward Proxies (HTTP / HTTPS / SOCKS5 with login:password@ip:port auth)
@@ -268,6 +269,14 @@ public final class SoundCloudProxyManager: @unchecked Sendable {
         return newSession
     }
 
+    /// Returns the currently active URLSession
+    public func currentSession() -> URLSession {
+        lock.lock()
+        let session = cachedSession
+        lock.unlock()
+        return session ?? URLSession.shared
+    }
+
     // MARK: - URL Rewriting & Request Preparation
 
     /// Rewrites any SoundCloud API URL (path or full URL)
@@ -342,38 +351,10 @@ public final class SoundCloudProxyManager: @unchecked Sendable {
         return request
     }
 
-    private static let queryParamAllowed: CharacterSet = {
-        var set = CharacterSet.alphanumerics
-        set.insert(charactersIn: "-._~")
-        return set
-    }()
-
-    /// Proxies media/artwork/stream URLs through the active mirror worker if enabled
+    /// Cleans and passes through media/artwork/stream URLs directly
     public func proxyMediaUrlIfNeeded(_ urlString: String?, settings: AppProfileSettings) -> String? {
         guard let urlString, !urlString.isEmpty else { return nil }
-        guard settings.soundCloudProxyEnabled else { return urlString }
-
-        // Avoid double proxying
-        if urlString.contains("/proxy?url=") {
-            return urlString
-        }
-
-        // Determine mirror host for media
-        let mirrorHost: String
-        if let config = getActiveProxyConfig(settings: settings), config.scheme == .worker {
-            mirrorHost = config.host
-        } else {
-            mirrorHost = Self.defaultProxyHost
-        }
-
-        // Proxy SoundCloud artwork CDN and streaming hosts
-        if urlString.contains("sndcdn.com") ||
-           urlString.contains("soundcloud.com") ||
-           urlString.contains("soundcloud.cloud") {
-            if let encoded = urlString.addingPercentEncoding(withAllowedCharacters: Self.queryParamAllowed) {
-                return "https://\(mirrorHost)/proxy?url=\(encoded)"
-            }
-        }
+        // Keep original clean URL so media/stream loads directly without 404 mirror rewrites
         return urlString
     }
 
@@ -460,3 +441,105 @@ final class ProxyAuthSessionDelegate: NSObject, URLSessionDelegate, URLSessionTa
         completionHandler(.performDefaultHandling, nil)
     }
 }
+
+// MARK: - AVPlayer Proxy Audio Resource Loader
+// Pours audio stream chunks through the user's authenticated proxy session with range headers
+
+public final class ProxyAudioResourceLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked Sendable {
+    public static let customScheme = "amymusic-proxy"
+    private let sessionProvider: @Sendable () -> URLSession
+    private var activeTasks: [AVAssetResourceLoadingRequest: URLSessionDataTask] = [:]
+    private let lock = NSLock()
+
+    public init(sessionProvider: @escaping @Sendable () -> URLSession) {
+        self.sessionProvider = sessionProvider
+        super.init()
+    }
+
+    public func resourceLoader(
+        _ resourceLoader: AVAssetResourceLoader,
+        shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest
+    ) -> Bool {
+        guard let url = loadingRequest.request.url, url.scheme == Self.customScheme else {
+            return false
+        }
+
+        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        comps?.scheme = "https"
+        guard let targetUrl = comps?.url else { return false }
+
+        var request = URLRequest(url: targetUrl)
+        request.timeoutInterval = 25
+        request.setValue("https://soundcloud.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://soundcloud.com/", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148", forHTTPHeaderField: "User-Agent")
+
+        if let dataRequest = loadingRequest.dataRequest {
+            let offset = dataRequest.requestedOffset
+            let length = dataRequest.requestedLength
+            if length > 0 {
+                let end = offset + Int64(length) - 1
+                request.setValue("bytes=\(offset)-\(end)", forHTTPHeaderField: "Range")
+            } else {
+                request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range")
+            }
+        }
+
+        let session = sessionProvider()
+        let task = session.dataTask(with: request) { [weak self, weak loadingRequest] data, response, error in
+            guard let self, let loadingRequest else { return }
+
+            self.lock.lock()
+            self.activeTasks.removeValue(forKey: loadingRequest)
+            self.lock.unlock()
+
+            if let error = error as? URLError, error.code == .cancelled {
+                return
+            }
+
+            if let error = error {
+                loadingRequest.finishLoading(with: error)
+                return
+            }
+
+            if let http = response as? HTTPURLResponse {
+                if let contentInfo = loadingRequest.contentInformationRequest {
+                    contentInfo.contentType = http.mimeType ?? "audio/mpeg"
+                    contentInfo.isByteRangeAccessSupported = true
+
+                    if let contentRange = (http.allHeaderFields["Content-Range"] ?? http.allHeaderFields["content-range"]) as? String,
+                       let totalStr = contentRange.components(separatedBy: "/").last,
+                       let total = Int64(totalStr) {
+                        contentInfo.contentLength = total
+                    } else if http.expectedContentLength > 0 {
+                        contentInfo.contentLength = http.expectedContentLength
+                    }
+                }
+            }
+
+            if let data = data, let dataRequest = loadingRequest.dataRequest {
+                dataRequest.respond(with: data)
+            }
+
+            loadingRequest.finishLoading()
+        }
+
+        lock.lock()
+        activeTasks[loadingRequest] = task
+        lock.unlock()
+
+        task.resume()
+        return true
+    }
+
+    public func resourceLoader(
+        _ resourceLoader: AVAssetResourceLoader,
+        didCancel loadingRequest: AVAssetResourceLoadingRequest
+    ) {
+        lock.lock()
+        let task = activeTasks.removeValue(forKey: loadingRequest)
+        lock.unlock()
+        task?.cancel()
+    }
+}
+

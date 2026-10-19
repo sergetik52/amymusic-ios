@@ -202,7 +202,7 @@ public struct CollectionView: View {
                                             onOpenArtist(artist.id)
                                         } label: {
                                             VStack(spacing: 8) {
-                                                AsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
+                                                AmyAsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
                                                     img.resizable().scaledToFill()
                                                 } placeholder: {
                                                     ZStack {
@@ -418,7 +418,7 @@ public struct ReleaseSquareCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack(alignment: .topTrailing) {
-                    AsyncImage(url: URL(string: release.coverUrl ?? "")) { img in
+                    AmyAsyncImage(url: URL(string: release.coverUrl ?? "")) { img in
                         img.resizable().scaledToFill()
                     } placeholder: {
                         LinearGradient(

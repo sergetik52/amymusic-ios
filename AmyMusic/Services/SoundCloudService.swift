@@ -785,17 +785,17 @@ public actor SoundCloudService {
         let pool = unencryptedPool.isEmpty ? (nonSnipped.isEmpty ? transcodings : nonSnipped) : unencryptedPool
 
         let chosenTranscoding: [String: Any]? = {
-            // First priority: unencrypted HLS 160k (standard SoundCloud high quality audio)
+            // First priority: unencrypted progressive mp3 (perfect for proxy streaming with range seek)
+            if let prog = pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased().contains("progressive") == true }) {
+                return prog
+            }
+            // Second priority: unencrypted HLS 160k
             if let hls160 = pool.first(where: {
                 let preset = ($0["preset"] as? String) ?? ""
                 let proto = (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased() ?? ""
                 return proto == "hls" && preset.contains("160")
             }) {
                 return hls160
-            }
-            // Second priority: unencrypted progressive mp3
-            if let prog = pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased().contains("progressive") == true }) {
-                return prog
             }
             // Third priority: any unencrypted standard HLS
             if let hlsAny = pool.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased() == "hls" }) {

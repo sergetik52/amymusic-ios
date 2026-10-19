@@ -19,7 +19,7 @@ public struct MiniKaraokeFloatingOverlay: View {
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                AsyncImage(url: URL(string: player.currentTrack?.coverUrl ?? "")) { image in
+                AmyAsyncImage(url: URL(string: player.currentTrack?.coverUrl ?? "")) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
                     Color.white.opacity(0.12)

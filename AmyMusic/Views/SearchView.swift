@@ -267,7 +267,7 @@ public struct SearchView: View {
                                 onOpenArtist(artist.id)
                             } label: {
                                 VStack(spacing: 8) {
-                                    AsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
+                                    AmyAsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
                                         img.resizable().scaledToFill()
                                     } placeholder: {
                                         Circle().fill(Color.white.opacity(0.12))
@@ -308,7 +308,7 @@ public struct SearchView: View {
                                 onOpenRelease(release)
                             } label: {
                                 HStack(spacing: 12) {
-                                    AsyncImage(url: URL(string: release.coverUrl ?? "")) { img in
+                                    AmyAsyncImage(url: URL(string: release.coverUrl ?? "")) { img in
                                         img.resizable().scaledToFill()
                                     } placeholder: {
                                         RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.12))
@@ -353,7 +353,7 @@ public struct SearchView: View {
 
         return HStack(spacing: 12) {
             // Cover
-            AsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+            AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
                 img.resizable().scaledToFill()
             } placeholder: {
                 RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.12))

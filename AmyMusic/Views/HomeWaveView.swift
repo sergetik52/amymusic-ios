@@ -74,7 +74,7 @@ public struct HomeWaveView: View {
                                     ForEach(player.waveSeeds.prefix(6)) { seed in
                                         HStack(spacing: 6) {
                                             if let avatar = seed.avatarUrl, let url = URL(string: avatar) {
-                                                AsyncImage(url: url) { img in
+                                                AmyAsyncImage(url: url) { img in
                                                     img.resizable().scaledToFill()
                                                 } placeholder: {
                                                     Color.white.opacity(0.12)
@@ -397,7 +397,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                     // Hero Content Row: Cover + Text + Play
                     HStack(alignment: .bottom, spacing: 0) {
                         // 1. Cover Square
-                        AsyncImage(url: URL(string: heroTrack?.coverUrl ?? "")) { image in
+                        AmyAsyncImage(url: URL(string: heroTrack?.coverUrl ?? "")) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
                             LinearGradient(
@@ -492,7 +492,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                     )
 
                     if let cover = heroTrack?.coverUrl, let url = URL(string: cover) {
-                        AsyncImage(url: url) { image in
+                        AmyAsyncImage(url: url) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
                             Color.clear
@@ -523,7 +523,7 @@ private struct PhoneHomeHeroWithEmbeddedSearch: View {
                                             onOpenArtist(artist.id)
                                         } label: {
                                             VStack(spacing: 6) {
-                                                AsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
+                                                AmyAsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
                                                     img.resizable().scaledToFill()
                                                 } placeholder: {
                                                     Circle().fill(Color.white.opacity(0.12))
@@ -634,7 +634,7 @@ private struct CoverMosaicFeatureCard: View {
                 GeometryReader { geo in
                     HStack(spacing: 0) {
                         ForEach(Array(covers.prefix(5).enumerated()), id: \.offset) { _, urlStr in
-                            AsyncImage(url: URL(string: urlStr)) { img in
+                            AmyAsyncImage(url: URL(string: urlStr)) { img in
                                 img.resizable().scaledToFill()
                             } placeholder: {
                                 Color.white.opacity(0.12)
@@ -694,7 +694,7 @@ private struct ForYouTrackSquareCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+                    AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
                         img.resizable().scaledToFill()
                     } placeholder: {
                         LinearGradient(
@@ -805,7 +805,7 @@ public struct WaveSeedModalView: View {
                                 } label: {
                                     VStack(spacing: 10) {
                                         ZStack(alignment: .bottomTrailing) {
-                                            AsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
+                                            AmyAsyncImage(url: URL(string: artist.avatarUrl ?? "")) { img in
                                                 img.resizable().scaledToFill()
                                             } placeholder: {
                                                 ZStack {

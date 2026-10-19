@@ -144,7 +144,7 @@ public struct ChartTrackRowView: View {
 
                 // 48x48 Cover
                 ZStack {
-                    AsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+                    AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
                         img.resizable().scaledToFill()
                     } placeholder: {
                         Color.white.opacity(0.12)
@@ -293,7 +293,7 @@ public struct TrackRowItemView: View {
     public var body: some View {
         Button(action: onTap) {
             HStack(spacing: compact ? 9 : 12) {
-                AsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+                AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
                     img.resizable().scaledToFill()
                 } placeholder: {
                     Color.white.opacity(0.12)
@@ -363,7 +363,7 @@ public struct TrackContextMenuPreviewCard: View {
 
     public var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+            AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
                 img.resizable().scaledToFill()
             } placeholder: {
                 Color.white.opacity(0.12)

@@ -78,6 +78,7 @@ public final class AudioPlayerManager {
     private var didTriggerCrossfadeForCurrentTrack: Bool = false
     private var timeObserverTokens: [Any?] = [nil, nil]
     private var energyTimer: Timer?
+    private var audioResourceLoader: ProxyAudioResourceLoader?
     private var listenAccumulator: Double = 0
 
     // MARK: - AVAudioEngine 10-Band EQ Graph
@@ -524,9 +525,28 @@ public final class AudioPlayerManager {
                 }
                 return
             }
-            guard !Task.isCancelled else { return }
-
-            let asset = AVURLAsset(url: streamUrl)
+            let asset: AVURLAsset
+            if let proxyConfig = SoundCloudProxyManager.shared.getActiveProxyConfig(settings: self.settings),
+               proxyConfig.isForwardProxy,
+               !track.isHls {
+                var comps = URLComponents(url: streamUrl, resolvingAgainstBaseURL: false)
+                comps?.scheme = ProxyAudioResourceLoader.customScheme
+                if let proxiedUrl = comps?.url {
+                    let proxiedAsset = AVURLAsset(url: proxiedUrl)
+                    let currentSession = SoundCloudProxyManager.shared.session(for: self.settings)
+                    let loader = ProxyAudioResourceLoader {
+                        currentSession
+                    }
+                    let queue = DispatchQueue(label: "com.amymusic.audioloader", qos: .userInitiated)
+                    self.audioResourceLoader = loader
+                    proxiedAsset.resourceLoader.setDelegate(loader, queue: queue)
+                    asset = proxiedAsset
+                } else {
+                    asset = AVURLAsset(url: streamUrl)
+                }
+            } else {
+                asset = AVURLAsset(url: streamUrl)
+            }
             let item = AVPlayerItem(asset: asset)
             item.preferredForwardBufferDuration = 20
 

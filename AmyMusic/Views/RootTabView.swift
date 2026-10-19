@@ -401,7 +401,7 @@ public struct NativeAppleLiquidGlassAccessory: View {
             // Track Info & Cover (Tap opens FullPlayer)
             HStack(spacing: 8) {
                 // Cover Art
-                AsyncImage(url: URL(string: track?.coverUrl ?? "")) { image in
+                AmyAsyncImage(url: URL(string: track?.coverUrl ?? "")) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
                     ZStack {
@@ -544,7 +544,7 @@ public struct PhoneLiquidGlassMiniPlayer: View {
             // Track Info & Cover (Tap opens FullPlayer)
             HStack(spacing: 8) {
                 // Cover Art
-                AsyncImage(url: URL(string: track?.coverUrl ?? "")) { image in
+                AmyAsyncImage(url: URL(string: track?.coverUrl ?? "")) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
                     ZStack {
