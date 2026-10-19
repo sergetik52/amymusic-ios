@@ -1016,16 +1016,13 @@ public final class AudioPlayerManager {
     private func loadSettings() {
         if let data = UserDefaults.standard.data(forKey: settingsKey),
            let decoded = try? JSONDecoder().decode(AppProfileSettings.self, from: data) {
-            var sanitized = decoded
-            if sanitized.soundCloudProxyCustomDomain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                sanitized.soundCloudProxyCustomDomain = "ios.amymusic.ru"
+            var s = decoded
+            if s.soundCloudProxyCustomDomain == "ios.amymusic.ru" {
+                s.soundCloudProxyCustomDomain = ""
             }
-            settings = sanitized
+            settings = s
         } else {
-            var defaultSettings = AppProfileSettings()
-            defaultSettings.soundCloudProxyEnabled = true
-            defaultSettings.soundCloudProxyCustomDomain = "ios.amymusic.ru"
-            settings = defaultSettings
+            settings = AppProfileSettings()
         }
     }
 }

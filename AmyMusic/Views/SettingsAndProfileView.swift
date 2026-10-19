@@ -418,30 +418,12 @@ public struct SettingsAndProfileView: View {
                                 Image(systemName: "globe.europe.africa.fill")
                                     .font(.system(size: 12))
                                     .foregroundStyle(.cyan)
-                                Text("Личный прокси не задан. Используется зеркало \(SoundCloudProxyManager.defaultProxyHost)")
+                                Text("Личный прокси не задан (прямое подключение)")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.white.opacity(0.6))
                             }
                             .padding(.top, 2)
                         }
-                    }
-
-                    // MARK: Mirror domain fallback (optional)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Зеркало API / Cloudflare Worker (резерв)")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.6))
-
-                        TextField("например: ios.amymusic.ru", text: $player.settings.soundCloudProxyCustomDomain)
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(.white)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                            .padding(12)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                            .onChange(of: player.settings.soundCloudProxyCustomDomain) { _, _ in
-                                player.persistSettings()
-                            }
                     }
 
                     // MARK: Test connection button

@@ -11,9 +11,6 @@ public final class SoundCloudProxyManager: @unchecked Sendable {
     /// Standard direct host for SoundCloud API v2
     public static let directHost = "api-v2.soundcloud.com"
 
-    /// Standard default unblocked proxy mirror domain for Russia
-    public static let defaultProxyHost = "ios.amymusic.ru"
-
     private let lock = NSLock()
     private var cachedSession: URLSession?
     private var cachedSessionKey: String?
@@ -187,20 +184,19 @@ public final class SoundCloudProxyManager: @unchecked Sendable {
     public func getActiveProxyConfig(settings: AppProfileSettings) -> ParsedProxyConfig? {
         guard settings.soundCloudProxyEnabled else { return nil }
 
-        // 1. Check custom proxy field first (personal proxy)
+        // 1. Check custom proxy field (personal proxy: login:pass@ip:port)
         let customProxy = settings.customHttpProxies.trimmingCharacters(in: .whitespacesAndNewlines)
         if !customProxy.isEmpty, let parsed = ParsedProxyConfig.parse(customProxy) {
             return parsed
         }
 
-        // 2. Check domain / worker field
+        // 2. Check custom domain if explicitly entered
         let domain = settings.soundCloudProxyCustomDomain.trimmingCharacters(in: .whitespacesAndNewlines)
         if !domain.isEmpty, let parsed = ParsedProxyConfig.parse(domain) {
             return parsed
         }
 
-        // 3. Fallback to default built-in mirror
-        return ParsedProxyConfig.parse(Self.defaultProxyHost)
+        return nil
     }
 
     /// Returns the active host for SoundCloud requests
