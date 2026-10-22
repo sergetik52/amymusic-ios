@@ -668,7 +668,13 @@ public final class AudioPlayerManager {
                 if let fetchedAt = upcoming.fetchedAt, Date().timeIntervalSince(fetchedAt) < 60 {
                     continue
                 }
-                if let resolved = await SoundCloudService.shared.resolveStreamUrl(for: upcoming, quality: settings.audioQuality) {
+                var target = upcoming
+                if target.source == .yandex {
+                    if let bridged = await YandexMusicService.shared.resolvePlayableSoundCloudTrack(for: target) {
+                        target = bridged
+                    }
+                }
+                if let resolved = await SoundCloudService.shared.resolveStreamUrl(for: target, quality: settings.audioQuality) {
                     if let idx = self.queue.firstIndex(where: { $0.id == upcoming.id }) {
                         self.queue[idx].streamUrl = resolved.url
                         self.queue[idx].isHls = resolved.isHls

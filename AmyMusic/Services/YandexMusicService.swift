@@ -104,7 +104,7 @@ public actor YandexMusicService {
 
     public func importPlaylistFromUrl(
         _ urlString: String,
-        onProgress: @Sendable (Int, Int) -> Void
+        onProgress: @escaping @Sendable (Int, Int) -> Void
     ) async -> ReleaseItem? {
         let trimmedInput = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedInput.isEmpty else { return nil }
@@ -251,74 +251,131 @@ public actor YandexMusicService {
             return nil
         }
 
-        // Search SoundCloud API for each parsed track ("поиск через аписаундклауда по итогу")
-        var resolvedTracks: [Track] = []
-        let total = rawTrackItems.count
-        for (idx, item) in rawTrackItems.enumerated() {
-            onProgress(idx + 1, total)
+        // Construct the release immediately using the already parsed tracks (0.2s instant import!)
+        let initialTracks = rawTrackItems.compactMap { $0.fallbackTrack }
+        guard !initialTracks.isEmpty else { return nil }
 
-            var matched: Track? = nil
+        let releaseId = "yandex_pl_\(UUID().uuidString)"
+        let imported = ReleaseItem(
+            id: releaseId,
+            title: releaseTitle,
+            artist: releaseArtist,
+            coverUrl: releaseCover ?? initialTracks.first?.coverUrl,
+            kind: .userPlaylist,
+            trackCount: initialTracks.count,
+            tracks: initialTracks
+        )
+        ReleaseCacheManager.shared.set(imported)
 
-            // 1. Full artist + title
-            let q1 = "\(item.artist) \(item.title)"
-            let res1 = await SoundCloudService.shared.searchTracks(query: q1, limit: 5)
-            matched = res1.first(where: { !$0.isSnippet }) ?? res1.first
+        // Launch high-speed parallel SoundCloud track resolution in background (6 concurrent workers)
+        Task.detached {
+            await self.resolveReleaseTracksInBackground(releaseId: releaseId, tracks: initialTracks, onProgress: onProgress)
+        }
 
-            // 2. Primary artist + title (strip feat collaborators)
-            if matched == nil {
-                let primaryArtist = item.artist.components(separatedBy: CharacterSet(charactersIn: ",&×/;")).first?.trimmingCharacters(in: .whitespaces) ?? item.artist
-                let q2 = "\(primaryArtist) \(item.title)"
-                let res2 = await SoundCloudService.shared.searchTracks(query: q2, limit: 5)
-                matched = res2.first(where: { !$0.isSnippet }) ?? res2.first
+        return imported
+    }
+
+    // MARK: - Parallel Background SoundCloud Track Resolution (6x Concurrency)
+
+    public func resolveReleaseTracksInBackground(
+        releaseId: String,
+        tracks: [Track],
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async {
+        guard !tracks.isEmpty else { return }
+
+        let total = tracks.count
+        var resolvedDict: [Int: Track] = [:]
+
+        await withTaskGroup(of: (Int, Track?).self) { group in
+            var trackIndex = 0
+            let maxConcurrent = 6
+
+            // Seed initial batch of parallel workers
+            while trackIndex < min(maxConcurrent, total) {
+                let idx = trackIndex
+                let tr = tracks[idx]
+                group.addTask {
+                    let resolved = await self.resolvePlayableSoundCloudTrack(for: tr)
+                    return (idx, resolved)
+                }
+                trackIndex += 1
             }
 
-            // 3. Title only (if remix or bootleg)
-            if matched == nil {
-                let res3 = await SoundCloudService.shared.searchTracks(query: item.title, limit: 3)
-                matched = res3.first(where: { !$0.isSnippet }) ?? res3.first
-            }
+            // Stream results and feed next tasks
+            var completedCount = 0
+            for await (idx, resolved) in group {
+                completedCount += 1
+                onProgress?(completedCount, total)
+                if let resolved {
+                    resolvedDict[idx] = resolved
+                }
 
-            if var best = matched {
-                // Keep high-resolution cover art and colors from Yandex
-                if let fallbackCover = item.coverUrl, !fallbackCover.isEmpty {
-                    best.coverUrl = fallbackCover
+                if trackIndex < total {
+                    let nextIdx = trackIndex
+                    let nextTr = tracks[nextIdx]
+                    group.addTask {
+                        let res = await self.resolvePlayableSoundCloudTrack(for: nextTr)
+                        return (nextIdx, res)
+                    }
+                    trackIndex += 1
                 }
-                if let pal = item.fallbackTrack?.palette {
-                    best.palette = pal
-                }
-                resolvedTracks.append(best)
-            } else if let fallback = item.fallbackTrack {
-                resolvedTracks.append(fallback)
             }
         }
 
-        let imported = ReleaseItem(
-            id: "yandex_pl_\(UUID().uuidString)",
-            title: releaseTitle,
-            artist: releaseArtist,
-            coverUrl: releaseCover ?? resolvedTracks.first?.coverUrl,
-            kind: .userPlaylist,
-            trackCount: resolvedTracks.count,
-            tracks: resolvedTracks
-        )
-        ReleaseCacheManager.shared.set(imported)
-        return imported
+        // Update release in memory & disk cache
+        if var cachedRelease = ReleaseCacheManager.shared.get(for: releaseId) {
+            var updatedTracks: [Track] = []
+            for (idx, orig) in tracks.enumerated() {
+                if let resolved = resolvedDict[idx] {
+                    updatedTracks.append(resolved)
+                } else {
+                    updatedTracks.append(orig)
+                }
+            }
+            cachedRelease.tracks = updatedTracks
+            ReleaseCacheManager.shared.set(cachedRelease)
+        }
     }
 
     // MARK: - Resolve Yandex Track via SoundCloud (Port of resolveChartTrackViaSoundCloud)
 
+    private var resolvedTrackCache: [String: Track] = [:]
+
     public func resolvePlayableSoundCloudTrack(for yandexTrack: Track) async -> Track? {
-        let query = "\(yandexTrack.artist) \(yandexTrack.title)"
-        let results = await SoundCloudService.shared.searchTracks(query: query, limit: 5)
-        guard var match = results.first(where: { !$0.isSnippet }) ?? results.first else {
-            return nil
+        if let cached = resolvedTrackCache[yandexTrack.id] {
+            return cached
         }
-        // Preserve Yandex high-res artwork & derived palette
-        if let cover = yandexTrack.coverUrl {
-            match.coverUrl = cover
+
+        // 1. Full artist + title
+        let q1 = "\(yandexTrack.artist) \(yandexTrack.title)"
+        let res1 = await SoundCloudService.shared.searchTracks(query: q1, limit: 5)
+        var matched = res1.first(where: { !$0.isSnippet }) ?? res1.first
+
+        // 2. Primary artist + title
+        if matched == nil {
+            let primaryArtist = yandexTrack.artist.components(separatedBy: CharacterSet(charactersIn: ",&×/;")).first?.trimmingCharacters(in: .whitespaces) ?? yandexTrack.artist
+            let q2 = "\(primaryArtist) \(yandexTrack.title)"
+            let res2 = await SoundCloudService.shared.searchTracks(query: q2, limit: 5)
+            matched = res2.first(where: { !$0.isSnippet }) ?? res2.first
         }
-        match.palette = yandexTrack.palette
-        return match
+
+        // 3. Title only
+        if matched == nil {
+            let res3 = await SoundCloudService.shared.searchTracks(query: yandexTrack.title, limit: 3)
+            matched = res3.first(where: { !$0.isSnippet }) ?? res3.first
+        }
+
+        guard var best = matched else { return nil }
+
+        // Retain high-res Yandex artwork & palette
+        if let cover = yandexTrack.coverUrl, !cover.isEmpty {
+            best.coverUrl = cover
+        }
+        best.palette = yandexTrack.palette
+
+        resolvedTrackCache[yandexTrack.id] = best
+        return best
     }
 
     // MARK: - Artist Avatar Lookup
