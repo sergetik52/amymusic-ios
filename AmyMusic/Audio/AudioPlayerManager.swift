@@ -807,6 +807,9 @@ public final class AudioPlayerManager {
             } else {
                 self.userPlaylists.insert(imported, at: 0)
             }
+            if let spIdx = self.spotifyUserPlaylists.firstIndex(where: { $0.id == item.id }) {
+                self.spotifyUserPlaylists[spIdx].trackCount = imported.trackCount
+            }
             self.persistState()
         }
     }

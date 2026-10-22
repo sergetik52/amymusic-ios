@@ -660,7 +660,8 @@ public struct SettingsAndProfileView: View {
                                                     .font(.system(size: 14, weight: .bold))
                                                     .foregroundStyle(.white)
                                                     .lineLimit(1)
-                                                Text("\(pl.trackCount) треков • \(pl.artist)")
+                                                let countStr = pl.trackCount > 0 ? (pl.trackCount % 10 == 1 && pl.trackCount % 100 != 11 ? "\(pl.trackCount) трек" : ((pl.trackCount % 10 >= 2 && pl.trackCount % 10 <= 4 && (pl.trackCount % 100 < 10 || pl.trackCount % 100 >= 20)) ? "\(pl.trackCount) трека" : "\(pl.trackCount) треков")) : "Плейлист"
+                                                Text("\(countStr) • \(pl.artist)")
                                                     .font(.system(size: 12, weight: .medium))
                                                     .foregroundStyle(.white.opacity(0.55))
                                                     .lineLimit(1)

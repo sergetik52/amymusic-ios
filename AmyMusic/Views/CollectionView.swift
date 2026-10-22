@@ -355,8 +355,8 @@ public struct CreateOrImportPlaylistSheetView: View {
                                                     Text(pl.title)
                                                         .font(.system(size: 13, weight: .bold))
                                                         .foregroundStyle(.white)
-                                                        .lineLimit(1)
-                                                    Text("\(pl.trackCount) треков")
+                                                    let countStr = pl.trackCount > 0 ? (pl.trackCount % 10 == 1 && pl.trackCount % 100 != 11 ? "\(pl.trackCount) трек" : ((pl.trackCount % 10 >= 2 && pl.trackCount % 10 <= 4 && (pl.trackCount % 100 < 10 || pl.trackCount % 100 >= 20)) ? "\(pl.trackCount) трека" : "\(pl.trackCount) треков")) : "Плейлист"
+                                                    Text(countStr)
                                                         .font(.system(size: 11, weight: .medium))
                                                         .foregroundStyle(.white.opacity(0.5))
                                                 }

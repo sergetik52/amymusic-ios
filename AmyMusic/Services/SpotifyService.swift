@@ -204,10 +204,49 @@ public actor SpotifyService {
         return json
     }
 
+    private func extractInt(from value: Any?) -> Int? {
+        guard let value else { return nil }
+        if let intVal = value as? Int { return intVal }
+        if let numVal = value as? NSNumber { return numVal.intValue }
+        if let strVal = value as? String, let parsed = Int(strVal.trimmingCharacters(in: .whitespaces)) { return parsed }
+        if let doubleVal = value as? Double { return Int(doubleVal) }
+        return nil
+    }
+
+    private func parseTrackCount(from dict: [String: Any]) -> Int {
+        if let tracksDict = dict["tracks"] as? [String: Any] {
+            if let total = extractInt(from: tracksDict["total"]), total > 0 { return total }
+            if let count = extractInt(from: tracksDict["count"]), count > 0 { return count }
+        }
+        if let itemsDict = dict["items"] as? [String: Any] {
+            if let total = extractInt(from: itemsDict["total"]), total > 0 { return total }
+            if let count = extractInt(from: itemsDict["count"]), count > 0 { return count }
+        }
+        if let total = extractInt(from: dict["total"]), total > 0 { return total }
+        if let total = extractInt(from: dict["total_tracks"]), total > 0 { return total }
+        if let total = extractInt(from: dict["track_count"]), total > 0 { return total }
+        if let total = extractInt(from: dict["tracks"]), total > 0 { return total }
+        if let items = dict["items"] as? [Any], !items.isEmpty { return items.count }
+        if let tracks = dict["tracks"] as? [Any], !tracks.isEmpty { return tracks.count }
+        return 0
+    }
+
+    public func fetchPlaylistTrackCount(id: String) async -> Int {
+        do {
+            let meta = try await requestSpotifyAPI(path: "/playlists/\(id)/tracks", queryItems: [
+                URLQueryItem(name: "limit", value: "1")
+            ])
+            return extractInt(from: meta["total"]) ?? 0
+        } catch {
+            return 0
+        }
+    }
+
     public func fetchUserPlaylists() async -> [ReleaseItem] {
-        var allPlaylists: [ReleaseItem] = []
+        var rawList: [(id: String, title: String, owner: String, coverUrl: String?, trackCount: Int)] = []
         var offset = 0
         let limit = 50
+
         while true {
             do {
                 let root = try await requestSpotifyAPI(path: "/me/playlists", queryItems: [
@@ -216,38 +255,67 @@ public actor SpotifyService {
                 ])
                 let items = (root["items"] as? [[String: Any]]) ?? []
                 if items.isEmpty { break }
+
                 for dict in items {
                     guard let id = dict["id"] as? String,
                           let title = dict["name"] as? String else { continue }
                     let owner = (dict["owner"] as? [String: Any])?["display_name"] as? String ?? "Spotify"
                     let images = dict["images"] as? [[String: Any]]
                     let coverUrl = images?.first?["url"] as? String
-                    let tracksTotal = (dict["tracks"] as? [String: Any])?["total"] as? Int ?? 0
+                    let count = parseTrackCount(from: dict)
 
-                    allPlaylists.append(ReleaseItem(
-                        id: "spotify_pl_\(id)",
-                        title: title,
-                        artist: owner,
-                        coverUrl: coverUrl,
-                        kind: .userPlaylist,
-                        trackCount: tracksTotal,
-                        tracks: []
-                    ))
+                    rawList.append((id: id, title: title, owner: owner, coverUrl: coverUrl, trackCount: count))
                 }
+
                 offset += items.count
-                let total = (root["total"] as? Int) ?? allPlaylists.count
+                let total = extractInt(from: root["total"]) ?? rawList.count
                 if offset >= total || items.count < limit { break }
             } catch {
                 break
             }
         }
-        return allPlaylists
+
+        // For any playlist where trackCount is 0, fetch exact track count from /playlists/{id}/tracks?limit=1 in parallel!
+        var verifiedCounts: [String: Int] = [:]
+        let needsCount = rawList.filter { $0.trackCount == 0 }
+
+        if !needsCount.isEmpty {
+            await withTaskGroup(of: (String, Int).self) { group in
+                for item in needsCount {
+                    let plId = item.id
+                    group.addTask {
+                        let cnt = await self.fetchPlaylistTrackCount(id: plId)
+                        return (plId, cnt)
+                    }
+                }
+                for await (plId, cnt) in group {
+                    if cnt > 0 {
+                        verifiedCounts[plId] = cnt
+                    }
+                }
+            }
+        }
+
+        return rawList.map { item in
+            let finalCount = item.trackCount > 0 ? item.trackCount : (verifiedCounts[item.id] ?? 0)
+            return ReleaseItem(
+                id: "spotify_pl_\(item.id)",
+                title: item.title,
+                artist: item.owner,
+                coverUrl: item.coverUrl,
+                kind: .userPlaylist,
+                trackCount: finalCount,
+                tracks: []
+            )
+        }
     }
 
     private func parsePlaylistTrackItem(_ item: [String: Any]) -> Track? {
-        guard let tDict = item["track"] as? [String: Any],
-              let tId = tDict["id"] as? String,
-              let tTitle = tDict["name"] as? String else { return nil }
+        let tDict = (item["track"] as? [String: Any]) ?? (item["item"] as? [String: Any]) ?? item
+        guard let tTitle = tDict["name"] as? String, !tTitle.isEmpty else { return nil }
+
+        let rawId = (tDict["id"] as? String) ?? (tDict["uri"] as? String)?.replacingOccurrences(of: "spotify:track:", with: "") ?? UUID().uuidString
+        let tId = rawId.isEmpty ? UUID().uuidString : rawId
 
         let rawArtists = (tDict["artists"] as? [[String: Any]]) ?? []
         let artistRefs: [ArtistRef] = rawArtists.compactMap { a in
@@ -259,7 +327,7 @@ public actor SpotifyService {
         let albumDict = tDict["album"] as? [String: Any]
         let albumImages = albumDict?["images"] as? [[String: Any]]
         let tCover = albumImages?.first?["url"] as? String // Exact individual track album cover
-        let durationMs = (tDict["duration_ms"] as? Double) ?? 180_000
+        let durationMs = extractInt(from: tDict["duration_ms"]) ?? 180_000
         let explicit = (tDict["explicit"] as? Bool) ?? false
 
         return Track(
@@ -270,7 +338,7 @@ public actor SpotifyService {
             artist: artistName,
             artists: artistRefs,
             coverUrl: tCover,
-            duration: durationMs / 1000.0,
+            duration: Double(durationMs) / 1000.0,
             isExplicit: explicit,
             source: .spotify,
             palette: TrackPalette.defaultPalette
@@ -314,8 +382,8 @@ public actor SpotifyService {
             let images = root["images"] as? [[String: Any]]
             let playlistCoverUrl = images?.first?["url"] as? String
 
-            let tracksObj = root["tracks"] as? [String: Any]
-            let items = (tracksObj?["items"] as? [[String: Any]]) ?? []
+            let tracksObj = (root["tracks"] as? [String: Any]) ?? (root["items"] as? [String: Any])
+            let items = (tracksObj?["items"] as? [[String: Any]]) ?? (root["items"] as? [[String: Any]]) ?? []
             var tracks: [Track] = []
 
             for item in items {
@@ -325,10 +393,17 @@ public actor SpotifyService {
             }
 
             // Pagination: Fetch ALL tracks without any limit (100, 500, 1000+ tracks)
-            let total = (tracksObj?["total"] as? Int) ?? items.count
+            let totalTracksCount: Int = {
+                if let n = (tracksObj?["total"] as? NSNumber)?.intValue, n > 0 { return n }
+                if let n = tracksObj?["total"] as? Int, n > 0 { return n }
+                if let n = (root["total"] as? NSNumber)?.intValue, n > 0 { return n }
+                if let n = root["total"] as? Int, n > 0 { return n }
+                return 0
+            }()
             var offset = items.count
 
-            while offset < total {
+            while true {
+                if totalTracksCount > 0 && offset >= totalTracksCount { break }
                 do {
                     let page = try await requestSpotifyAPI(
                         path: "/playlists/\(id)/tracks",
@@ -346,6 +421,7 @@ public actor SpotifyService {
                         }
                     }
                     offset += pageItems.count
+                    if pageItems.count < 100 { break }
                 } catch {
                     break
                 }
