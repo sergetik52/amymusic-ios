@@ -395,47 +395,86 @@ public actor SoundCloudService {
         )
     }
 
-    public func hydrateReleaseTracks(_ release: ReleaseItem) async -> ReleaseItem {
+    public func hydrateReleaseTracks(_ release: ReleaseItem, forceRefresh: Bool = false) async -> ReleaseItem {
         let cleanId = release.id
             .replacingOccurrences(of: "sc_pl_", with: "")
             .replacingOccurrences(of: "sc_album_", with: "")
             .replacingOccurrences(of: "sc_", with: "")
 
-        var fullTracks: [Track] = release.tracks.filter { $0.title != "Без названия" }
-        var stubIds: [String] = []
+        // 1. Check persistent cache (memory & disk)
+        if !forceRefresh,
+           let cached = ReleaseCacheManager.shared.get(for: release.id),
+           !cached.tracks.isEmpty,
+           (cached.tracks.count >= release.trackCount || !cached.tracks.contains { $0.title == "Без названия" }) {
+            return cached
+        }
+
+        var trackMap: [String: Track] = [:]
+        var originalTrackIds: [String] = []
 
         if let dict = try? await requestJSON(path: "/playlists/\(cleanId)") as? [String: Any],
            let rawTracks = dict["tracks"] as? [[String: Any]] {
-            fullTracks = []
             for item in rawTracks {
+                guard let idVal = item["id"] else { continue }
+                let idStr = "\(idVal)"
+                originalTrackIds.append(idStr)
+
                 if item["title"] != nil, let t = normalizeTrack(item) {
-                    fullTracks.append(t)
-                } else if let id = item["id"] {
-                    stubIds.append("\(id)")
+                    trackMap[idStr] = t
+                    trackMap[t.rawId] = t
                 }
             }
         } else {
-            // Fallback: If playlist endpoint wasn't accessible directly, collect any stub IDs
-            stubIds = release.tracks.compactMap { $0.title == "Без названия" ? $0.rawId : nil }
+            // Fallback: If playlist endpoint wasn't accessible directly, use release.tracks
+            for t in release.tracks {
+                originalTrackIds.append(t.rawId)
+                if t.title != "Без названия" {
+                    trackMap[t.rawId] = t
+                }
+            }
         }
 
+        // Determine which track IDs still need to be hydrated
+        let missingIds = originalTrackIds.filter { trackMap[$0] == nil }
+
         // Batch hydrate stub tracks in chunks of 50 (matching SoundCloud API /tracks?ids=...)
-        if !stubIds.isEmpty {
-            for chunkStart in stride(from: 0, to: stubIds.count, by: 50) {
-                let chunk = Array(stubIds[chunkStart..<min(chunkStart + 50, stubIds.count)])
+        if !missingIds.isEmpty {
+            for chunkStart in stride(from: 0, to: missingIds.count, by: 50) {
+                let chunk = Array(missingIds[chunkStart..<min(chunkStart + 50, missingIds.count)])
                 if let arr = try? await requestJSON(
                     path: "/tracks",
                     queryItems: [URLQueryItem(name: "ids", value: chunk.joined(separator: ","))]
                 ) as? [[String: Any]] {
-                    let hydrated = arr.compactMap { normalizeTrack($0) }
-                    fullTracks.append(contentsOf: hydrated)
+                    for item in arr {
+                        if let idVal = item["id"], let t = normalizeTrack(item) {
+                            let idStr = "\(idVal)"
+                            trackMap[idStr] = t
+                            trackMap[t.rawId] = t
+                        }
+                    }
                 }
             }
         }
 
+        // Build the final tracks array strictly in the EXACT same order as SoundCloud's originalTrackIds!
+        var orderedTracks: [Track] = []
+        var seenIds = Set<String>()
+        for id in originalTrackIds {
+            if let t = trackMap[id], !seenIds.contains(t.id) {
+                seenIds.insert(t.id)
+                orderedTracks.append(t)
+            }
+        }
+
         var updated = release
-        updated.tracks = fullTracks
-        updated.trackCount = max(fullTracks.count, release.trackCount)
+        updated.tracks = orderedTracks
+        updated.trackCount = max(orderedTracks.count, release.trackCount)
+
+        // Save to persistent cache so we don't re-download every time!
+        if !orderedTracks.isEmpty {
+            ReleaseCacheManager.shared.set(updated)
+        }
+
         return updated
     }
 

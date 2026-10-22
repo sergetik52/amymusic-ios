@@ -438,7 +438,7 @@ public struct AlbumOrPlaylistSheetView: View {
     @State private var pushedArtistId: String? = nil
 
     private var activeRelease: ReleaseItem {
-        hydratedRelease ?? release
+        hydratedRelease ?? ReleaseCacheManager.shared.get(for: release.id) ?? release
     }
 
     private var isLikedSpecialPlaylist: Bool {
@@ -694,6 +694,13 @@ public struct AlbumOrPlaylistSheetView: View {
                 }
             }
             .task {
+                if let cached = ReleaseCacheManager.shared.get(for: release.id),
+                   !cached.tracks.isEmpty,
+                   (cached.tracks.count >= release.trackCount || !cached.tracks.contains { $0.title == "Без названия" }) {
+                    hydratedRelease = cached
+                    return
+                }
+
                 let needsHydration = release.tracks.isEmpty ||
                     release.tracks.contains { $0.title == "Без названия" } ||
                     release.tracks.count < release.trackCount
@@ -702,6 +709,11 @@ public struct AlbumOrPlaylistSheetView: View {
                     hydratedRelease = await SoundCloudService.shared.hydrateReleaseTracks(release)
                     isLoading = false
                 }
+            }
+            .refreshable {
+                isLoading = true
+                hydratedRelease = await SoundCloudService.shared.hydrateReleaseTracks(release, forceRefresh: true)
+                isLoading = false
             }
         }
     }

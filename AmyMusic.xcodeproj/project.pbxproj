@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		08C24109CB485F5FE48FB80C /* ReleaseCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4398662779708F34613078D1 /* ReleaseCacheManager.swift */; };
 		0ACBE2A71E6635E3F6D27320 /* LiquidGlassTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E87C54D82FCCF66EEFDCCF2 /* LiquidGlassTheme.swift */; };
 		1B82914C1023145933D15429 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C96C628766410CFFC2B76CD1 /* Models.swift */; };
 		1C57BA33EF550501D08498B3 /* ArtistAndAlbumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DAA00FB40FBA48FED01C6F2 /* ArtistAndAlbumView.swift */; };
@@ -64,6 +65,7 @@
 		20121C165E447C9D6B9EC828 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
 		37CD2FAA9DB0610C1743B352 /* AmyMusicLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmyMusicLiveActivity.swift; sourceTree = "<group>"; };
 		3C176B11DE13CBE8AECF3740 /* AmyMusicWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AmyMusicWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4398662779708F34613078D1 /* ReleaseCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseCacheManager.swift; sourceTree = "<group>"; };
 		46712EAF6973EE37550967D1 /* HomeWaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWaveView.swift; sourceTree = "<group>"; };
 		4DAA00FB40FBA48FED01C6F2 /* ArtistAndAlbumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistAndAlbumView.swift; sourceTree = "<group>"; };
 		5A511636285A2AACD112AD0B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 			children = (
 				B591AB1D60B344C1C6C5F1AE /* ImageCacheManager.swift */,
 				F152B9575EFCCF037F49D08E /* LyricsService.swift */,
+				4398662779708F34613078D1 /* ReleaseCacheManager.swift */,
 				986297B2447B1876270AD1C1 /* SoundCloudProxyManager.swift */,
 				6CBB612A269CE3A2A5B6A951 /* SoundCloudService.swift */,
 				15CC0C17E4491A0FB79CC3CC /* YandexMusicService.swift */,
@@ -300,6 +303,7 @@
 				B548230A9532674B379FF416 /* LyricsService.swift in Sources */,
 				39F7B1D83E96D2B229432BAE /* MiniKaraokeFloatingOverlay.swift in Sources */,
 				1B82914C1023145933D15429 /* Models.swift in Sources */,
+				08C24109CB485F5FE48FB80C /* ReleaseCacheManager.swift in Sources */,
 				2AF3774D88CCA712A2793BF8 /* RootTabView.swift in Sources */,
 				5631D1336211D1707A0F3F12 /* SearchView.swift in Sources */,
 				ADAFA18EA4F0854317B13AD6 /* SettingsAndProfileView.swift in Sources */,
