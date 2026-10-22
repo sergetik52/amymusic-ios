@@ -7,26 +7,29 @@
 
 *Современный нативный музыкальный плеер и стриминг-клиент для iOS с адаптивным Liquid Glass дизайном, синхронизированными текстами песен, умным импортом плейлистов и аудио в 320 kbps.*
 
-[![Platform](https://img.shields.io/badge/Platform-iOS%2017.0+-8C20DF?style=for-the-badge&logo=apple&logoColor=white)](https://apple.com)
+[![Release](https://img.shields.io/badge/Release-v1.0.0-8C20DF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sergetik52/amymusic-ios/releases/tag/v1.0.0)
+[![Platform](https://img.shields.io/badge/Platform-iOS%2017.0+-black?style=for-the-badge&logo=apple&logoColor=white)](https://apple.com)
 [![Swift](https://img.shields.io/badge/Swift-6.0-FA7343?style=for-the-badge&logo=swift&logoColor=white)](https://swift.org)
 [![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-007AFF?style=for-the-badge&logo=swift&logoColor=white)](https://developer.apple.com/xcode/swiftui/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-[📦 **Скачать AmyMusic.ipa (Прямая загрузка)**](AmyMusic.ipa) &nbsp;&bull;&nbsp; [⚡️ Установка через Scarlet / TrollStore](#-установка-на-iphone) &nbsp;&bull;&nbsp; [🛠 Сборка из исходников](#-сборка-из-исходников)
+[📦 **Скачать AmyMusic.ipa (Прямая загрузка)**](AmyMusic.ipa) &nbsp;&bull;&nbsp; [🚀 **Страница релизов GitHub**](https://github.com/sergetik52/amymusic-ios/releases) &nbsp;&bull;&nbsp; [⚡️ **Установка на iPhone**](#-установка-на-iphone) &nbsp;&bull;&nbsp; [🛠 **Сборка**](#-сборка-из-исходников)
 
 ---
 
-</div>
-
-<br/>
+### 📱 Скриншоты интерфейса
 
 <div align="center">
-  <img src="design-preview/amymusic_full_player.jpg" width="48%" style="border-radius: 18px;" alt="AmyMusic Full Player" />
+  <img src="screenshots/wave_tab.png" width="31%" style="border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" alt="Моя Волна" />
   &nbsp;&nbsp;
-  <img src="design-preview/amymusic_wave_tab.jpg" width="48%" style="border-radius: 18px;" alt="AmyMusic Wave Tab" />
+  <img src="screenshots/charts_tab.png" width="31%" style="border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" alt="Чарты" />
+  &nbsp;&nbsp;
+  <img src="screenshots/full_player.png" width="31%" style="border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" alt="Плеер" />
 </div>
 
 <br/>
+
+</div>
 
 ---
 
@@ -85,7 +88,7 @@
 
 ## 📲 Установка на iPhone
 
-Готовый файл приложения **`AmyMusic.ipa`** находится прямо в этом репозитории.
+Готовый файл приложения **`AmyMusic.ipa`** находится прямо в этом репозитории и на [странице релизов](https://github.com/sergetik52/amymusic-ios/releases).
 
 ### Способ 1: Scarlet / TrollStore / AltStore / SideStore (Без ПК или через ПК)
 1. Скачайте файл [**`AmyMusic.ipa`**](AmyMusic.ipa) из репозитория на iPhone.
@@ -153,8 +156,9 @@ amymusic-ios/
 │       ├── ArtistAndAlbumView.swift    # Экран альбома, плейлиста и карточка артиста
 │       └── SettingsAndProfileView.swift# Настройки темы, эквалайзер, прокси, Spotify
 ├── AmyMusicWidget/                     # Live Activities & Dynamic Island виджет
-├── design-preview/                     # Скриншоты и макеты интерфейса
+├── screenshots/                        # Реальные скриншоты интерфейса
 ├── AmyMusic.ipa                        # Готовая подписанная сборка для установки
+├── RELEASE_NOTES.md                    # Список изменений релиза
 └── README.md                           # Документация проекта
 ```
 
