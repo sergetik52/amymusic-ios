@@ -527,7 +527,7 @@ public struct AppProfileSettings: Codable, Equatable, Sendable {
     public var yandexOAuthToken: String = ""
 
     // Spotify Integration (OAuth2 PKCE + Web API)
-    public var spotifyClientId: String = "88974a2b71d846d5aa4f80631542e021"
+    public var spotifyClientId: String = "0c0053dd5bfd401f9a5b064273513e5e"
     public var spotifyAccessToken: String = ""
     public var spotifyRefreshToken: String = ""
     public var spotifyTokenExpiry: Date? = nil

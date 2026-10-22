@@ -532,7 +532,7 @@ public struct SettingsAndProfileView: View {
                     .lineSpacing(2)
 
                 if !player.settings.spotifyAccessToken.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 12) {
                             if !player.settings.spotifyUserAvatar.isEmpty, let url = URL(string: player.settings.spotifyUserAvatar) {
                                 AsyncImage(url: url) { phase in
@@ -579,114 +579,237 @@ public struct SettingsAndProfileView: View {
                         }
                         .padding(12)
                         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+
+                        // MARK: - Playlists Transfer Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Ваши плейлисты Spotify")
+                                        .font(.system(size: 15, weight: .black))
+                                        .foregroundStyle(.white)
+                                    Text("Перенос плейлистов со всеми треками (без лимита 100)")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                }
+                                Spacer()
+                                Button {
+                                    Task { await player.loadSpotifyPlaylists() }
+                                } label: {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                        .padding(8)
+                                        .background(.white.opacity(0.08), in: Circle())
+                                }
+                            }
+
+                            if player.isFetchingSpotifyPlaylists {
+                                HStack(spacing: 10) {
+                                    ProgressView().tint(.green)
+                                    Text("Загрузка ваших плейлистов...")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.7))
+                                }
+                                .padding(.vertical, 16)
+                                .frame(maxWidth: .infinity)
+                            } else if player.spotifyUserPlaylists.isEmpty {
+                                VStack(spacing: 8) {
+                                    Text("Плейлисты не загружены или список пуст")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.6))
+                                    Button("Загрузить плейлисты") {
+                                        Task { await player.loadSpotifyPlaylists() }
+                                    }
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(Color.green)
+                                }
+                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(player.spotifyUserPlaylists) { pl in
+                                        let isImportingThis = player.importingSpotifyPlaylistIds.contains(pl.id)
+                                        let cleanPlId = pl.id.replacingOccurrences(of: "spotify_pl_", with: "")
+                                        let isAlreadyImported = player.userPlaylists.contains(where: {
+                                            $0.id == pl.id || $0.id == "spotify_pl_\(cleanPlId)" || ($0.title == pl.title && $0.artist == pl.artist)
+                                        })
+
+                                        HStack(spacing: 12) {
+                                            if let cUrl = pl.coverUrl, let url = URL(string: cUrl) {
+                                                AsyncImage(url: url) { phase in
+                                                    if let img = phase.image {
+                                                        img.resizable().scaledToFill()
+                                                    } else {
+                                                        Color.white.opacity(0.1)
+                                                    }
+                                                }
+                                                .frame(width: 46, height: 46)
+                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            } else {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .fill(.white.opacity(0.1))
+                                                    .frame(width: 46, height: 46)
+                                                    .overlay {
+                                                        Image(systemName: "music.note")
+                                                            .foregroundStyle(.white.opacity(0.5))
+                                                    }
+                                            }
+
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(pl.title)
+                                                    .font(.system(size: 14, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                                    .lineLimit(1)
+                                                Text("\(pl.trackCount) треков • \(pl.artist)")
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .foregroundStyle(.white.opacity(0.55))
+                                                    .lineLimit(1)
+                                            }
+
+                                            Spacer()
+
+                                            if isImportingThis {
+                                                ProgressView()
+                                                    .tint(.green)
+                                                    .padding(.horizontal, 8)
+                                            } else if isAlreadyImported {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "checkmark.circle.fill")
+                                                    Text("В коллекции")
+                                                }
+                                                .font(.system(size: 12, weight: .bold))
+                                                .foregroundStyle(.green)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(.green.opacity(0.14), in: Capsule())
+                                            } else {
+                                                Button {
+                                                    Task {
+                                                        await player.importSpotifyUserPlaylist(pl)
+                                                    }
+                                                } label: {
+                                                    HStack(spacing: 5) {
+                                                        Image(systemName: "arrow.down.circle.fill")
+                                                        Text("Перенести")
+                                                    }
+                                                    .font(.system(size: 12, weight: .bold))
+                                                    .foregroundStyle(.black)
+                                                    .padding(.horizontal, 12)
+                                                    .padding(.vertical, 7)
+                                                    .background(Color.green, in: Capsule())
+                                                }
+                                            }
+                                        }
+                                        .padding(10)
+                                        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Spotify Client ID (для авторизации)")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.7))
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.green)
+                            Text("Client ID встроен: готов к подключению")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
 
-                        HStack(spacing: 8) {
-                            TextField("Вставьте ваш Client ID...", text: $player.settings.spotifyClientId)
-                                .font(.system(size: 13, design: .monospaced))
-                                .foregroundStyle(.white)
-                                .padding(10)
-                                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                                .onChange(of: player.settings.spotifyClientId) { _, _ in
-                                    player.persistSettings()
-                                }
-
-                            if UIPasteboard.general.hasStrings {
-                                Button {
-                                    if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                                        player.settings.spotifyClientId = pasted
-                                        player.persistSettings()
+                        Button {
+                            isLoggingInSpotify = true
+                            spotifyLoginError = nil
+                            Task {
+                                do {
+                                    try await player.startSpotifyLogin()
+                                    await MainActor.run {
+                                        isLoggingInSpotify = false
                                     }
-                                } label: {
-                                    Image(systemName: "doc.on.clipboard")
-                                        .font(.system(size: 13, weight: .semibold))
+                                } catch {
+                                    await MainActor.run {
+                                        isLoggingInSpotify = false
+                                        spotifyLoginError = "Ошибка входа: \(error.localizedDescription)"
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if isLoggingInSpotify {
+                                    ProgressView().tint(.black).scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                }
+                                Text(isLoggingInSpotify ? "Подключение к Spotify..." : "Войти через Spotify")
+                                    .font(.system(size: 14, weight: .bold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.green.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
+                            .foregroundStyle(.black)
+                        }
+                        .disabled(isLoggingInSpotify)
+
+                        DisclosureGroup {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("По умолчанию используется встроенный проверенный Client ID. Вы можете указать собственный при необходимости.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.white.opacity(0.5))
+                                    .lineSpacing(2)
+
+                                HStack(spacing: 8) {
+                                    TextField("Client ID...", text: $player.settings.spotifyClientId)
+                                        .font(.system(size: 13, design: .monospaced))
                                         .foregroundStyle(.white)
                                         .padding(10)
-                                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                                        .onChange(of: player.settings.spotifyClientId) { _, _ in
+                                            player.persistSettings()
+                                        }
+
+                                    if UIPasteboard.general.hasStrings {
+                                        Button {
+                                            if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                                                player.settings.spotifyClientId = pasted
+                                                player.persistSettings()
+                                            }
+                                        } label: {
+                                            Image(systemName: "doc.on.clipboard")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(.white)
+                                                .padding(10)
+                                                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                                        }
+                                    }
                                 }
                             }
-
-                            if !player.settings.spotifyClientId.isEmpty {
-                                Button {
-                                    player.settings.spotifyClientId = ""
-                                    player.persistSettings()
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.white.opacity(0.5))
-                                        .padding(10)
-                                }
-                            }
-                        }
-
-                        Text("Инструкция: откройте developer.spotify.com/dashboard ➔ Create app ➔ в Redirect URI вставьте amymusic://spotify-callback ➔ сохраните и скопируйте Client ID сюда.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.45))
-                            .lineSpacing(2)
-                    }
-
-                    Button {
-                        let clientId = player.settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if clientId.isEmpty {
-                            spotifyLoginError = "Введите Spotify Client ID выше (или используйте Способ 1: просто вставьте ссылку в «Коллекции»)."
-                            return
-                        }
-
-                        isLoggingInSpotify = true
-                        spotifyLoginError = nil
-                        Task {
-                            do {
-                                try await player.startSpotifyLogin()
-                                await MainActor.run {
-                                    isLoggingInSpotify = false
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    isLoggingInSpotify = false
-                                    spotifyLoginError = "Ошибка входа: \(error.localizedDescription)"
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            if isLoggingInSpotify {
-                                ProgressView().tint(.black).scaleEffect(0.8)
-                            } else {
-                                Image(systemName: "arrow.right.circle.fill")
-                            }
-                            Text(isLoggingInSpotify ? "Подключение к Spotify..." : "Войти через Spotify")
-                                .font(.system(size: 14, weight: .bold))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.green.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(.black)
-                    }
-                    .disabled(isLoggingInSpotify)
-
-                    HStack {
-                        Button {
-                            player.logoutSpotify()
-                            spotifyLoginError = nil
+                            .padding(.top, 6)
                         } label: {
-                            Text("Сбросить сессию и куки Spotify")
+                            Text("Настройки Client ID (дополнительно)")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.55))
-                                .underline()
+                                .foregroundStyle(.white.opacity(0.5))
                         }
-                        Spacer()
-                    }
 
-                    if let error = spotifyLoginError {
-                        Text(error)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.orange)
-                            .lineSpacing(2)
+                        HStack {
+                            Button {
+                                player.logoutSpotify()
+                                spotifyLoginError = nil
+                            } label: {
+                                Text("Сбросить сессию и куки Spotify")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.55))
+                                    .underline()
+                            }
+                            Spacer()
+                        }
+
+                        if let error = spotifyLoginError {
+                            Text(error)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.orange)
+                                .lineSpacing(2)
+                        }
                     }
                 }
             }

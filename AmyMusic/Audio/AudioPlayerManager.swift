@@ -37,6 +37,9 @@ public final class AudioPlayerManager {
     public var playHistory: [Track] = []
     public var savedReleases: [ReleaseItem] = []
     public var userPlaylists: [ReleaseItem] = []
+    public var spotifyUserPlaylists: [ReleaseItem] = []
+    public var isFetchingSpotifyPlaylists: Bool = false
+    public var importingSpotifyPlaylistIds: Set<String> = []
     public var subscribedArtists: [ArtistRef] = []
     public var waveSeeds: [WaveSeed] = []
     public var forYouTracks: [Track] = []
@@ -105,6 +108,9 @@ public final class AudioPlayerManager {
             await YandexMusicService.shared.updateSettings(settings)
             await SpotifyService.shared.updateSettings(settings)
             await loadInitialRecommendations()
+            if !settings.spotifyAccessToken.isEmpty {
+                await loadSpotifyPlaylists()
+            }
         }
     }
 
@@ -702,13 +708,10 @@ public final class AudioPlayerManager {
     // MARK: - Spotify OAuth2 Authorization
 
     public func startSpotifyLogin() async throws {
-        let clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clientId.isEmpty else {
-            throw NSError(
-                domain: "SpotifyAuth",
-                code: 400,
-                userInfo: [NSLocalizedDescriptionKey: "Укажите Spotify Client ID в настройках. Инструкция как его получить за 1 минуту находится в поле ниже."]
-            )
+        var clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clientId.isEmpty {
+            clientId = SpotifyService.defaultClientId
+            self.settings.spotifyClientId = clientId
         }
 
         let verifier = SpotifyPKCE.generateCodeVerifier()
@@ -759,6 +762,8 @@ public final class AudioPlayerManager {
         self.settings.spotifyUserDisplayName = auth.displayName
         self.settings.spotifyUserAvatar = auth.avatarUrl
         self.persistSettings()
+
+        await self.loadSpotifyPlaylists()
     }
 
     public func logoutSpotify() {
@@ -768,6 +773,8 @@ public final class AudioPlayerManager {
         settings.spotifyUserDisplayName = ""
         settings.spotifyUserAvatar = ""
         settings.spotifyUserId = ""
+        spotifyUserPlaylists = []
+        importingSpotifyPlaylistIds = []
 
         if let cookies = HTTPCookieStorage.shared.cookies {
             for cookie in cookies where cookie.domain.contains("spotify.com") {
@@ -776,6 +783,32 @@ public final class AudioPlayerManager {
         }
 
         persistSettings()
+    }
+
+    public func loadSpotifyPlaylists() async {
+        guard !settings.spotifyAccessToken.isEmpty else {
+            self.spotifyUserPlaylists = []
+            return
+        }
+        self.isFetchingSpotifyPlaylists = true
+        let playlists = await SpotifyService.shared.fetchUserPlaylists()
+        self.spotifyUserPlaylists = playlists
+        self.isFetchingSpotifyPlaylists = false
+    }
+
+    public func importSpotifyUserPlaylist(_ item: ReleaseItem) async {
+        let spotifyId = item.id.replacingOccurrences(of: "spotify_pl_", with: "")
+        importingSpotifyPlaylistIds.insert(item.id)
+        defer { importingSpotifyPlaylistIds.remove(item.id) }
+
+        if let imported = await SpotifyService.shared.importSpotifyPlaylistById(spotifyId) {
+            if let existingIdx = self.userPlaylists.firstIndex(where: { $0.id == imported.id }) {
+                self.userPlaylists[existingIdx] = imported
+            } else {
+                self.userPlaylists.insert(imported, at: 0)
+            }
+            self.persistState()
+        }
     }
 
     private func applyVolumeToActiveEngine() {
@@ -1118,6 +1151,9 @@ public final class AudioPlayerManager {
             var s = decoded
             if s.soundCloudProxyCustomDomain == "ios.amymusic.ru" {
                 s.soundCloudProxyCustomDomain = ""
+            }
+            if s.spotifyClientId.isEmpty || s.spotifyClientId == "88974a2b71d846d5aa4f80631542e021" {
+                s.spotifyClientId = "0c0053dd5bfd401f9a5b064273513e5e"
             }
             settings = s
         } else {

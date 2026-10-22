@@ -396,11 +396,6 @@ public actor SoundCloudService {
     }
 
     public func hydrateReleaseTracks(_ release: ReleaseItem, forceRefresh: Bool = false) async -> ReleaseItem {
-        let cleanId = release.id
-            .replacingOccurrences(of: "sc_pl_", with: "")
-            .replacingOccurrences(of: "sc_album_", with: "")
-            .replacingOccurrences(of: "sc_", with: "")
-
         // 1. Check persistent cache (memory & disk)
         if !forceRefresh,
            let cached = ReleaseCacheManager.shared.get(for: release.id),
@@ -408,6 +403,18 @@ public actor SoundCloudService {
            (cached.tracks.count >= release.trackCount || !cached.tracks.contains { $0.title == "Без названия" }) {
             return cached
         }
+
+        if release.id.hasPrefix("spotify_") {
+            let spId = release.id.replacingOccurrences(of: "spotify_pl_", with: "").replacingOccurrences(of: "spotify_", with: "")
+            if let spRelease = await SpotifyService.shared.importSpotifyPlaylistById(spId) {
+                return spRelease
+            }
+        }
+
+        let cleanId = release.id
+            .replacingOccurrences(of: "sc_pl_", with: "")
+            .replacingOccurrences(of: "sc_album_", with: "")
+            .replacingOccurrences(of: "sc_", with: "")
 
         var trackMap: [String: Track] = [:]
         var originalTrackIds: [String] = []

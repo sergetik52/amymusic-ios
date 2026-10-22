@@ -292,6 +292,141 @@ public struct CreateOrImportPlaylistSheetView: View {
                         .padding(18)
                         .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
 
+                        // MARK: - Spotify 1-Tap Transfer Card
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "music.note.list")
+                                    .foregroundStyle(.green)
+                                Text("Ваши плейлисты Spotify")
+                                    .font(.system(size: 16, weight: .black))
+                                    .foregroundStyle(.white)
+                            }
+
+                            if !player.settings.spotifyAccessToken.isEmpty {
+                                Text("Выберите плейлист для переноса в Коллекцию (все треки переносятся полностью без ограничений).")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.55))
+
+                                if player.isFetchingSpotifyPlaylists {
+                                    HStack(spacing: 10) {
+                                        ProgressView().tint(.green)
+                                        Text("Загрузка ваших плейлистов Spotify...")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(.white.opacity(0.7))
+                                    }
+                                    .padding(.vertical, 12)
+                                } else if player.spotifyUserPlaylists.isEmpty {
+                                    Button("Загрузить список плейлистов") {
+                                        Task { await player.loadSpotifyPlaylists() }
+                                    }
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(.green)
+                                } else {
+                                    VStack(spacing: 8) {
+                                        ForEach(player.spotifyUserPlaylists) { pl in
+                                            let isImportingThis = player.importingSpotifyPlaylistIds.contains(pl.id)
+                                            let cleanPlId = pl.id.replacingOccurrences(of: "spotify_pl_", with: "")
+                                            let isAlreadyImported = player.userPlaylists.contains(where: {
+                                                $0.id == pl.id || $0.id == "spotify_pl_\(cleanPlId)" || ($0.title == pl.title && $0.artist == pl.artist)
+                                            })
+
+                                            HStack(spacing: 12) {
+                                                if let cUrl = pl.coverUrl, let url = URL(string: cUrl) {
+                                                    AsyncImage(url: url) { phase in
+                                                        if let img = phase.image {
+                                                            img.resizable().scaledToFill()
+                                                        } else {
+                                                            Color.white.opacity(0.1)
+                                                        }
+                                                    }
+                                                    .frame(width: 44, height: 44)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                        .fill(.white.opacity(0.1))
+                                                        .frame(width: 44, height: 44)
+                                                        .overlay {
+                                                            Image(systemName: "music.note")
+                                                                .foregroundStyle(.white.opacity(0.5))
+                                                        }
+                                                }
+
+                                                VStack(alignment: .leading, spacing: 3) {
+                                                    Text(pl.title)
+                                                        .font(.system(size: 13, weight: .bold))
+                                                        .foregroundStyle(.white)
+                                                        .lineLimit(1)
+                                                    Text("\(pl.trackCount) треков")
+                                                        .font(.system(size: 11, weight: .medium))
+                                                        .foregroundStyle(.white.opacity(0.5))
+                                                }
+
+                                                Spacer()
+
+                                                if isImportingThis {
+                                                    ProgressView().tint(.green)
+                                                        .padding(.horizontal, 8)
+                                                } else if isAlreadyImported {
+                                                    HStack(spacing: 4) {
+                                                        Image(systemName: "checkmark.circle.fill")
+                                                        Text("В коллекции")
+                                                    }
+                                                    .font(.system(size: 11, weight: .bold))
+                                                    .foregroundStyle(.green)
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 5)
+                                                    .background(.green.opacity(0.14), in: Capsule())
+                                                } else {
+                                                    Button {
+                                                        Task {
+                                                            await player.importSpotifyUserPlaylist(pl)
+                                                        }
+                                                    } label: {
+                                                        HStack(spacing: 4) {
+                                                            Image(systemName: "arrow.down.circle.fill")
+                                                            Text("Перенести")
+                                                        }
+                                                        .font(.system(size: 12, weight: .bold))
+                                                        .foregroundStyle(.black)
+                                                        .padding(.horizontal, 12)
+                                                        .padding(.vertical, 6)
+                                                        .background(Color.green, in: Capsule())
+                                                    }
+                                                }
+                                            }
+                                            .padding(10)
+                                            .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text("Подключите ваш аккаунт Spotify, чтобы видеть все ваши плейлисты здесь и переносить их в 1 тап.")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.55))
+                                    .lineSpacing(2)
+
+                                Button {
+                                    Task {
+                                        do {
+                                            try await player.startSpotifyLogin()
+                                        } catch {}
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.right.circle.fill")
+                                        Text("Войти в Spotify")
+                                    }
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(.black)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color.green, in: Capsule())
+                                }
+                            }
+                        }
+                        .padding(18)
+                        .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
                         // Yandex Music / SoundCloud / Spotify URL Importer Card
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 8) {

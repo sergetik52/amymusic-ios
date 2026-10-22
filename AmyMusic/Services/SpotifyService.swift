@@ -8,6 +8,7 @@ import CryptoKit
 
 public actor SpotifyService {
     public static let shared = SpotifyService()
+    public static let defaultClientId = "0c0053dd5bfd401f9a5b064273513e5e"
 
     private let apiBase = "https://api.spotify.com/v1"
     private let tokenUrl = "https://accounts.spotify.com/api/token"
@@ -48,8 +49,10 @@ public actor SpotifyService {
         let refreshToken = settings.spotifyRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !refreshToken.isEmpty else { return nil }
 
-        let clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clientId.isEmpty else { return nil }
+        var clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clientId.isEmpty {
+            clientId = SpotifyService.defaultClientId
+        }
 
         guard let url = URL(string: tokenUrl) else { return nil }
         var request = URLRequest(url: url)
@@ -96,9 +99,9 @@ public actor SpotifyService {
 
     public func exchangeCodeForToken(code: String, codeVerifier: String) async throws -> SpotifyAuthResult {
         guard let url = URL(string: tokenUrl) else { throw URLError(.badURL) }
-        let clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clientId.isEmpty else {
-            throw NSError(domain: "SpotifyAuth", code: 400, userInfo: [NSLocalizedDescriptionKey: "Spotify Client ID не указан в настройках"])
+        var clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clientId.isEmpty {
+            clientId = SpotifyService.defaultClientId
         }
 
         var request = URLRequest(url: url)
@@ -202,32 +205,43 @@ public actor SpotifyService {
     }
 
     public func fetchUserPlaylists() async -> [ReleaseItem] {
-        do {
-            let root = try await requestSpotifyAPI(path: "/me/playlists", queryItems: [
-                URLQueryItem(name: "limit", value: "50")
-            ])
-            let items = (root["items"] as? [[String: Any]]) ?? []
-            return items.compactMap { dict in
-                guard let id = dict["id"] as? String,
-                      let title = dict["name"] as? String else { return nil }
-                let owner = (dict["owner"] as? [String: Any])?["display_name"] as? String ?? "Spotify"
-                let images = dict["images"] as? [[String: Any]]
-                let coverUrl = images?.first?["url"] as? String
-                let tracksTotal = (dict["tracks"] as? [String: Any])?["total"] as? Int ?? 0
+        var allPlaylists: [ReleaseItem] = []
+        var offset = 0
+        let limit = 50
+        while true {
+            do {
+                let root = try await requestSpotifyAPI(path: "/me/playlists", queryItems: [
+                    URLQueryItem(name: "limit", value: "\(limit)"),
+                    URLQueryItem(name: "offset", value: "\(offset)")
+                ])
+                let items = (root["items"] as? [[String: Any]]) ?? []
+                if items.isEmpty { break }
+                for dict in items {
+                    guard let id = dict["id"] as? String,
+                          let title = dict["name"] as? String else { continue }
+                    let owner = (dict["owner"] as? [String: Any])?["display_name"] as? String ?? "Spotify"
+                    let images = dict["images"] as? [[String: Any]]
+                    let coverUrl = images?.first?["url"] as? String
+                    let tracksTotal = (dict["tracks"] as? [String: Any])?["total"] as? Int ?? 0
 
-                return ReleaseItem(
-                    id: "spotify_pl_\(id)",
-                    title: title,
-                    artist: owner,
-                    coverUrl: coverUrl,
-                    kind: .userPlaylist,
-                    trackCount: tracksTotal,
-                    tracks: []
-                )
+                    allPlaylists.append(ReleaseItem(
+                        id: "spotify_pl_\(id)",
+                        title: title,
+                        artist: owner,
+                        coverUrl: coverUrl,
+                        kind: .userPlaylist,
+                        trackCount: tracksTotal,
+                        tracks: []
+                    ))
+                }
+                offset += items.count
+                let total = (root["total"] as? Int) ?? allPlaylists.count
+                if offset >= total || items.count < limit { break }
+            } catch {
+                break
             }
-        } catch {
-            return []
         }
+        return allPlaylists
     }
 
     private func parsePlaylistTrackItem(_ item: [String: Any]) -> Track? {
@@ -600,25 +614,58 @@ public actor SpotifyService {
         else if let plMatch = targetUrl.range(of: #"open\.spotify\.com/playlist/([a-zA-Z0-9]+)"#, options: .regularExpression) {
             let matchedStr = String(targetUrl[plMatch])
             let plId = matchedStr.replacingOccurrences(of: "open.spotify.com/playlist/", with: "")
-
-            var result: (title: String, artist: String, coverUrl: String?, tracks: [Track])? = nil
-            if await getValidAccessToken() != nil {
-                result = await fetchPlaylistWebAPI(id: plId)
-            }
-            if result == nil {
-                result = await fetchEmbedRelease(type: "playlist", id: plId)
-            }
-            if let r = result {
-                releaseTitle = r.title
-                releaseArtist = r.artist
-                releaseCover = r.coverUrl
-                rawTracks = r.tracks
-            }
+            return await importSpotifyPlaylistById(plId, onProgress: onProgress)
         }
 
         guard !rawTracks.isEmpty else { return nil }
 
         let releaseId = "spotify_pl_\(UUID().uuidString)"
+        let imported = ReleaseItem(
+            id: releaseId,
+            title: releaseTitle,
+            artist: releaseArtist,
+            coverUrl: releaseCover ?? rawTracks.first?.coverUrl,
+            kind: .userPlaylist,
+            trackCount: rawTracks.count,
+            tracks: rawTracks
+        )
+        ReleaseCacheManager.shared.set(imported)
+
+        // Launch high-speed background SoundCloud stream resolution (6 concurrent workers)
+        Task.detached {
+            await self.resolveReleaseTracksInBackground(releaseId: releaseId, tracks: rawTracks, onProgress: onProgress)
+        }
+
+        return imported
+    }
+
+    public func importSpotifyPlaylistById(
+        _ playlistId: String,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async -> ReleaseItem? {
+        let cleanId = playlistId.replacingOccurrences(of: "spotify_pl_", with: "").replacingOccurrences(of: "spotify:playlist:", with: "")
+        var releaseTitle = "Spotify Плейлист"
+        var releaseArtist = "Spotify"
+        var releaseCover: String?
+        var rawTracks: [Track] = []
+
+        var result: (title: String, artist: String, coverUrl: String?, tracks: [Track])? = nil
+        if await getValidAccessToken() != nil {
+            result = await fetchPlaylistWebAPI(id: cleanId)
+        }
+        if result == nil {
+            result = await fetchEmbedRelease(type: "playlist", id: cleanId)
+        }
+        if let r = result {
+            releaseTitle = r.title
+            releaseArtist = r.artist
+            releaseCover = r.coverUrl
+            rawTracks = r.tracks
+        }
+
+        guard !rawTracks.isEmpty else { return nil }
+
+        let releaseId = "spotify_pl_\(cleanId)"
         let imported = ReleaseItem(
             id: releaseId,
             title: releaseTitle,
