@@ -696,7 +696,7 @@ public struct AlbumOrPlaylistSheetView: View {
             .task {
                 if let cached = ReleaseCacheManager.shared.get(for: release.id),
                    !cached.tracks.isEmpty,
-                   (cached.tracks.count >= release.trackCount || !cached.tracks.contains { $0.title == "Без названия" }) {
+                   (cached.tracks.count >= release.trackCount && !cached.tracks.contains { $0.title == "Без названия" }) {
                     hydratedRelease = cached
                     return
                 }

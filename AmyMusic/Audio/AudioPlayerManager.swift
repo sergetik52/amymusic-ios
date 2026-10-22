@@ -801,6 +801,14 @@ public final class AudioPlayerManager {
         importingSpotifyPlaylistIds.insert(item.id)
         defer { importingSpotifyPlaylistIds.remove(item.id) }
 
+        // Clear previous disk cache for this playlist so it doesn't get stuck on old 100 tracks
+        ReleaseCacheManager.shared.clear(for: item.id)
+        ReleaseCacheManager.shared.clear(for: "spotify_pl_\(spotifyId)")
+        ReleaseCacheManager.shared.clear(for: spotifyId)
+
+        // Ensure SpotifyService has fresh settings and credentials
+        await SpotifyService.shared.updateSettings(self.settings)
+
         if let imported = await SpotifyService.shared.importSpotifyPlaylistById(spotifyId) {
             if let existingIdx = self.userPlaylists.firstIndex(where: {
                 $0.id == imported.id || $0.id == "spotify_pl_\(spotifyId)" || ($0.title == imported.title && $0.artist == imported.artist)

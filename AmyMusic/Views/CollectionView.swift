@@ -559,6 +559,7 @@ public struct CreateOrImportPlaylistSheetView: View {
             let isSoundCloud = url.contains("soundcloud.com") || url.contains("on.soundcloud.com")
             let result: ReleaseItem?
             if isSpotify {
+                await SpotifyService.shared.updateSettings(player.settings)
                 result = await SpotifyService.shared.importPlaylistFromUrl(url) { cur, tot in
                     Task { @MainActor in
                         self.importCurrent = cur
@@ -583,7 +584,13 @@ public struct CreateOrImportPlaylistSheetView: View {
 
             Task { @MainActor in
                 if let imported = result {
-                    player.userPlaylists.insert(imported, at: 0)
+                    if let existingIdx = player.userPlaylists.firstIndex(where: {
+                        $0.id == imported.id || ($0.title == imported.title && $0.artist == imported.artist)
+                    }) {
+                        player.userPlaylists[existingIdx] = imported
+                    } else {
+                        player.userPlaylists.insert(imported, at: 0)
+                    }
                     player.persistState()
                     isImporting = false
                     yandexUrlInput = ""

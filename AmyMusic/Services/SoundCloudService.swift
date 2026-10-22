@@ -400,7 +400,7 @@ public actor SoundCloudService {
         if !forceRefresh,
            let cached = ReleaseCacheManager.shared.get(for: release.id),
            !cached.tracks.isEmpty,
-           (cached.tracks.count >= release.trackCount || !cached.tracks.contains { $0.title == "Без названия" }) {
+           (cached.tracks.count >= release.trackCount && !cached.tracks.contains { $0.title == "Без названия" }) {
             return cached
         }
 

@@ -184,21 +184,59 @@ public actor SpotifyService {
             throw URLError(.userAuthenticationRequired)
         }
 
-        var components = URLComponents(string: "\(apiBase)\(path)")
+        var components: URLComponents?
+        if path.hasPrefix("http") {
+            components = URLComponents(string: path)
+        } else {
+            components = URLComponents(string: "\(apiBase)\(path)")
+        }
         if !queryItems.isEmpty {
-            components?.queryItems = queryItems
+            var existing = components?.queryItems ?? []
+            existing.append(contentsOf: queryItems)
+            components?.queryItems = existing
         }
         guard let url = components?.url else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = 20
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let session = SoundCloudProxyManager.shared.session(for: self.settings)
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        // Automatic retry on 401 Unauthorized (token refresh)
+        if http.statusCode == 401 {
+            if let refreshedToken = await refreshAccessToken() {
+                var retryReq = URLRequest(url: url)
+                retryReq.timeoutInterval = 20
+                retryReq.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
+                retryReq.setValue("application/json", forHTTPHeaderField: "Accept")
+                let (retryData, retryResp) = try await session.data(for: retryReq)
+                if let retryHttp = retryResp as? HTTPURLResponse, (200...299).contains(retryHttp.statusCode),
+                   let json = try? JSONSerialization.jsonObject(with: retryData) as? [String: Any] {
+                    return json
+                }
+            }
+        }
+
+        // Automatic retry on 429 Rate Limit
+        if http.statusCode == 429 {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            let (retryData, retryResp) = try await session.data(for: request)
+            if let retryHttp = retryResp as? HTTPURLResponse, (200...299).contains(retryHttp.statusCode),
+               let json = try? JSONSerialization.jsonObject(with: retryData) as? [String: Any] {
+                return json
+            }
+        }
+
+        guard (200...299).contains(http.statusCode),
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let errorBody = String(data: data, encoding: .utf8) ?? ""
+            print("[SpotifyAPI] HTTP \(http.statusCode) for \(url): \(errorBody)")
             throw URLError(.badServerResponse)
         }
         return json
@@ -383,16 +421,16 @@ public actor SpotifyService {
             let playlistCoverUrl = images?.first?["url"] as? String
 
             let tracksObj = (root["tracks"] as? [String: Any]) ?? (root["items"] as? [String: Any])
-            let items = (tracksObj?["items"] as? [[String: Any]]) ?? (root["items"] as? [[String: Any]]) ?? []
+            let initialItems = (tracksObj?["items"] as? [[String: Any]]) ?? (root["items"] as? [[String: Any]]) ?? []
             var tracks: [Track] = []
 
-            for item in items {
+            for item in initialItems {
                 if let tr = parsePlaylistTrackItem(item) {
                     tracks.append(tr)
                 }
             }
 
-            // Pagination: Fetch ALL tracks without any limit (100, 500, 1000+ tracks)
+            // Total tracks count from Spotify metadata
             let totalTracksCount: Int = {
                 if let n = (tracksObj?["total"] as? NSNumber)?.intValue, n > 0 { return n }
                 if let n = tracksObj?["total"] as? Int, n > 0 { return n }
@@ -400,37 +438,62 @@ public actor SpotifyService {
                 if let n = root["total"] as? Int, n > 0 { return n }
                 return 0
             }()
-            var offset = items.count
+
+            var nextUrl: String? = tracksObj?["next"] as? String
+            var offset = initialItems.count
             let pageSize = 50
 
-            while true {
-                if totalTracksCount > 0 && offset >= totalTracksCount { break }
-                do {
-                    let page = try await requestSpotifyAPI(
-                        path: "/playlists/\(id)/tracks",
-                        queryItems: [
-                            URLQueryItem(name: "offset", value: "\(offset)"),
-                            URLQueryItem(name: "limit", value: "\(pageSize)")
-                        ],
-                        tokenOverride: tokenOverride
-                    )
-                    let pageItems = (page["items"] as? [[String: Any]]) ?? []
-                    if pageItems.isEmpty { break }
-                    for item in pageItems {
-                        if let tr = parsePlaylistTrackItem(item) {
-                            tracks.append(tr)
+            while (totalTracksCount > 0 && offset < totalTracksCount) || nextUrl != nil {
+                var pageSuccess = false
+                var retryCount = 0
+
+                while !pageSuccess && retryCount < 3 {
+                    do {
+                        let page: [String: Any]
+                        if let nUrl = nextUrl, !nUrl.isEmpty {
+                            page = try await requestSpotifyAPI(path: nUrl, tokenOverride: tokenOverride)
+                        } else {
+                            page = try await requestSpotifyAPI(
+                                path: "/playlists/\(id)/tracks",
+                                queryItems: [
+                                    URLQueryItem(name: "offset", value: "\(offset)"),
+                                    URLQueryItem(name: "limit", value: "\(pageSize)")
+                                ],
+                                tokenOverride: tokenOverride
+                            )
                         }
+
+                        let pageItems = (page["items"] as? [[String: Any]]) ?? []
+                        for item in pageItems {
+                            if let tr = parsePlaylistTrackItem(item) {
+                                tracks.append(tr)
+                            }
+                        }
+
+                        offset += pageItems.count
+                        nextUrl = page["next"] as? String
+                        pageSuccess = true
+
+                        if pageItems.isEmpty && nextUrl == nil {
+                            break
+                        }
+                    } catch {
+                        retryCount += 1
+                        print("[Spotify] fetch page error at offset \(offset) (attempt \(retryCount)/3): \(error)")
+                        try? await Task.sleep(nanoseconds: 500_000_000)
                     }
-                    offset += pageItems.count
-                    if pageItems.count < pageSize { break }
-                } catch {
-                    print("[Spotify] fetch page error at offset \(offset): \(error)")
+                }
+
+                if !pageSuccess {
+                    print("[Spotify] aborting pagination after 3 failed attempts at offset \(offset), current count: \(tracks.count)/\(totalTracksCount)")
                     break
                 }
             }
 
+            print("[Spotify] Finished fetching playlist '\(title)' tracks: \(tracks.count) of \(totalTracksCount)")
             return (title, owner, playlistCoverUrl, tracks)
         } catch {
+            print("[Spotify] fetchPlaylistWebAPI root failed: \(error)")
             return nil
         }
     }
@@ -753,6 +816,9 @@ public actor SpotifyService {
             trackCount: rawTracks.count,
             tracks: rawTracks
         )
+        // Clear old stale cache and set fresh full release
+        ReleaseCacheManager.shared.clear(for: releaseId)
+        ReleaseCacheManager.shared.clear(for: cleanId)
         ReleaseCacheManager.shared.set(imported)
 
         // Launch high-speed background SoundCloud stream resolution (6 concurrent workers)
