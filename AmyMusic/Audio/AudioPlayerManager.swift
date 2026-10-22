@@ -702,9 +702,17 @@ public final class AudioPlayerManager {
     // MARK: - Spotify OAuth2 Authorization
 
     public func startSpotifyLogin() async throws {
+        let clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clientId.isEmpty else {
+            throw NSError(
+                domain: "SpotifyAuth",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Укажите Spotify Client ID в настройках. Инструкция как его получить за 1 минуту находится в поле ниже."]
+            )
+        }
+
         let verifier = SpotifyPKCE.generateCodeVerifier()
         let challenge = SpotifyPKCE.generateCodeChallenge(from: verifier)
-        let clientId = settings.spotifyClientId.isEmpty ? "88974a2b71d846d5aa4f80631542e021" : settings.spotifyClientId
         let redirectUri = "amymusic://spotify-callback"
         let scope = "user-read-private playlist-read-private playlist-read-collaborative user-library-read"
 
@@ -715,7 +723,8 @@ public final class AudioPlayerManager {
             URLQueryItem(name: "redirect_uri", value: redirectUri),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "code_challenge", value: challenge),
-            URLQueryItem(name: "scope", value: scope)
+            URLQueryItem(name: "scope", value: scope),
+            URLQueryItem(name: "show_dialog", value: "true")
         ]
         guard let authUrl = components.url else { throw URLError(.badURL) }
 
@@ -733,7 +742,7 @@ public final class AudioPlayerManager {
                 }
             }
             session.presentationContextProvider = SpotifyAuthPresentationContext.shared
-            session.prefersEphemeralWebBrowserSession = false
+            session.prefersEphemeralWebBrowserSession = true
             session.start()
         }
 
@@ -753,6 +762,13 @@ public final class AudioPlayerManager {
         settings.spotifyUserDisplayName = ""
         settings.spotifyUserAvatar = ""
         settings.spotifyUserId = ""
+
+        if let cookies = HTTPCookieStorage.shared.cookies {
+            for cookie in cookies where cookie.domain.contains("spotify.com") {
+                HTTPCookieStorage.shared.deleteCookie(cookie)
+            }
+        }
+
         persistSettings()
     }
 

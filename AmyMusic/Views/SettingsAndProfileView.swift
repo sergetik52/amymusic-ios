@@ -526,7 +526,7 @@ public struct SettingsAndProfileView: View {
                         .foregroundStyle(.white)
                 }
 
-                Text("Авторизация через ваш личный аккаунт Spotify для переноса ваших плейлистов и любимых треков. Все треки играют бесплатно через SoundCloud.")
+                Text("Перенос ваших плейлистов и альбомов со Spotify. Треки связываются с SoundCloud и играют бесплатно в 320 kbps.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.6))
                     .lineSpacing(2)
@@ -559,7 +559,7 @@ public struct SettingsAndProfileView: View {
                                         .foregroundStyle(.green)
                                         .font(.system(size: 13))
                                 }
-                                Text("Аккаунт подключен")
+                                Text("Аккаунт подключен • Доступ ко всем трекам")
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(.green.opacity(0.9))
                             }
@@ -581,7 +581,62 @@ public struct SettingsAndProfileView: View {
                         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
                     }
                 } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Spotify Client ID (для авторизации)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+
+                        HStack(spacing: 8) {
+                            TextField("Вставьте ваш Client ID...", text: $player.settings.spotifyClientId)
+                                .font(.system(size: 13, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .padding(10)
+                                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                                .onChange(of: player.settings.spotifyClientId) { _, _ in
+                                    player.persistSettings()
+                                }
+
+                            if UIPasteboard.general.hasStrings {
+                                Button {
+                                    if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                                        player.settings.spotifyClientId = pasted
+                                        player.persistSettings()
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.clipboard")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(10)
+                                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
+
+                            if !player.settings.spotifyClientId.isEmpty {
+                                Button {
+                                    player.settings.spotifyClientId = ""
+                                    player.persistSettings()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(0.5))
+                                        .padding(10)
+                                }
+                            }
+                        }
+
+                        Text("Инструкция: откройте developer.spotify.com/dashboard ➔ Create app ➔ в Redirect URI вставьте amymusic://spotify-callback ➔ сохраните и скопируйте Client ID сюда.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .lineSpacing(2)
+                    }
+
                     Button {
+                        let clientId = player.settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if clientId.isEmpty {
+                            spotifyLoginError = "Введите Spotify Client ID выше (или используйте Способ 1: просто вставьте ссылку в «Коллекции»)."
+                            return
+                        }
+
                         isLoggingInSpotify = true
                         spotifyLoginError = nil
                         Task {
@@ -614,10 +669,24 @@ public struct SettingsAndProfileView: View {
                     }
                     .disabled(isLoggingInSpotify)
 
+                    HStack {
+                        Button {
+                            player.logoutSpotify()
+                            spotifyLoginError = nil
+                        } label: {
+                            Text("Сбросить сессию и куки Spotify")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.55))
+                                .underline()
+                        }
+                        Spacer()
+                    }
+
                     if let error = spotifyLoginError {
                         Text(error)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.orange)
+                            .lineSpacing(2)
                     }
                 }
             }
