@@ -54,7 +54,7 @@ public final class AudioPlayerManager {
             applyEqualizerSettings()
             Task {
                 await SoundCloudService.shared.updateSettings(settings)
-                await YandexMusicService.shared.updateToken(settings.yandexOAuthToken)
+                await YandexMusicService.shared.updateSettings(settings)
                 await loadInitialRecommendations()
             }
         }
@@ -64,7 +64,7 @@ public final class AudioPlayerManager {
         saveSettings()
         Task {
             await SoundCloudService.shared.updateSettings(settings)
-            await YandexMusicService.shared.updateToken(settings.yandexOAuthToken)
+            await YandexMusicService.shared.updateSettings(settings)
             await loadInitialRecommendations()
         }
     }
@@ -99,7 +99,7 @@ public final class AudioPlayerManager {
 
         Task {
             await SoundCloudService.shared.updateSettings(settings)
-            await YandexMusicService.shared.updateToken(settings.yandexOAuthToken)
+            await YandexMusicService.shared.updateSettings(settings)
             await loadInitialRecommendations()
         }
     }

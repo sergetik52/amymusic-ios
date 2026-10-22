@@ -256,6 +256,7 @@ public struct CreateOrImportPlaylistSheetView: View {
     @State private var isImporting: Bool = false
     @State private var importCurrent: Int = 0
     @State private var importTotal: Int = 0
+    @State private var importErrorMessage: String? = nil
 
     public var body: some View {
         NavigationStack {
@@ -291,7 +292,7 @@ public struct CreateOrImportPlaylistSheetView: View {
                         .padding(18)
                         .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
 
-                        // Yandex Music / URL Importer Card
+                        // Yandex Music / SoundCloud URL Importer Card
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 8) {
                                 Image(systemName: "link.badge.plus")
@@ -301,17 +302,36 @@ public struct CreateOrImportPlaylistSheetView: View {
                                     .foregroundStyle(.white)
                             }
 
-                            Text("Вставьте ссылку на плейлист или альбом (например, music.yandex.ru/users/.../playlists/...)")
+                            Text("Вставьте ссылку на плейлист, альбом или трек из Яндекс Музыки (music.yandex.ru) или SoundCloud (soundcloud.com)")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.55))
 
-                            TextField("Ссылка на плейлист (music.yandex.ru/...)", text: $yandexUrlInput)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(.white)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                                .padding(14)
-                                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            HStack(spacing: 8) {
+                                TextField("Ссылка на плейлист или альбом...", text: $yandexUrlInput)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.never)
+                                    .padding(14)
+                                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .onChange(of: yandexUrlInput) { _, _ in
+                                        importErrorMessage = nil
+                                    }
+
+                                Button {
+                                    if let paste = UIPasteboard.general.string {
+                                        yandexUrlInput = paste.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        importErrorMessage = nil
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.clipboard")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 44, height: 44)
+                                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
 
                             if isImporting {
                                 VStack(alignment: .leading, spacing: 6) {
@@ -321,10 +341,23 @@ public struct CreateOrImportPlaylistSheetView: View {
                                     )
                                     .tint(.white)
 
-                                    Text("Импорт треков: \(importCurrent) из \(importTotal)...")
+                                    Text("Поиск и импорт треков: \(importCurrent) из \(importTotal)...")
                                         .font(.system(size: 12, weight: .semibold))
                                         .foregroundStyle(.white.opacity(0.7))
                                 }
+                            }
+
+                            if let error = importErrorMessage {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .foregroundStyle(.orange)
+                                    Text(error)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.orange)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             }
 
                             Button {
@@ -362,21 +395,43 @@ public struct CreateOrImportPlaylistSheetView: View {
     }
 
     private func startImport() {
-        let url = yandexUrlInput
+        let url = yandexUrlInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return }
         isImporting = true
+        importErrorMessage = nil
+        importCurrent = 0
+        importTotal = 0
+
         Task {
-            if let imported = await YandexMusicService.shared.importPlaylistFromUrl(url, onProgress: { current, total in
-                Task { @MainActor in
-                    self.importCurrent = current
-                    self.importTotal = total
+            let isSoundCloud = url.contains("soundcloud.com") || url.contains("on.soundcloud.com")
+            let result: ReleaseItem?
+            if isSoundCloud {
+                result = await SoundCloudService.shared.importPlaylistFromUrl(url) { cur, tot in
+                    Task { @MainActor in
+                        self.importCurrent = cur
+                        self.importTotal = tot
+                    }
                 }
-            }) {
-                player.userPlaylists.insert(imported, at: 0)
-                player.persistState()
-                isImporting = false
-                dismiss()
             } else {
-                isImporting = false
+                result = await YandexMusicService.shared.importPlaylistFromUrl(url) { cur, tot in
+                    Task { @MainActor in
+                        self.importCurrent = cur
+                        self.importTotal = tot
+                    }
+                }
+            }
+
+            Task { @MainActor in
+                if let imported = result {
+                    player.userPlaylists.insert(imported, at: 0)
+                    player.persistState()
+                    isImporting = false
+                    yandexUrlInput = ""
+                    dismiss()
+                } else {
+                    isImporting = false
+                    importErrorMessage = "Не удалось распознать или импортировать плейлист. Проверьте ссылку."
+                }
             }
         }
     }

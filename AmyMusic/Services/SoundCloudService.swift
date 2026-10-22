@@ -478,6 +478,97 @@ public actor SoundCloudService {
         return updated
     }
 
+    // MARK: - Playlist / Release Link Importer
+
+    public static func resolveRedirectUrl(_ urlString: String) async -> String {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed) else { return trimmed }
+
+        var headReq = URLRequest(url: url)
+        headReq.httpMethod = "HEAD"
+        headReq.timeoutInterval = 8
+        if let (_, response) = try? await URLSession.shared.data(for: headReq),
+           let finalUrl = response.url?.absoluteString, !finalUrl.isEmpty {
+            return finalUrl
+        }
+
+        var getReq = URLRequest(url: url)
+        getReq.httpMethod = "GET"
+        getReq.timeoutInterval = 8
+        if let (_, response) = try? await URLSession.shared.data(for: getReq),
+           let finalUrl = response.url?.absoluteString, !finalUrl.isEmpty {
+            return finalUrl
+        }
+
+        return trimmed
+    }
+
+    public func importPlaylistFromUrl(
+        _ urlString: String,
+        onProgress: @Sendable (Int, Int) -> Void
+    ) async -> ReleaseItem? {
+        var canonical = await Self.resolveRedirectUrl(urlString)
+        canonical = canonical.components(separatedBy: "?").first ?? canonical
+        canonical = canonical.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !canonical.isEmpty else { return nil }
+
+        // Use SoundCloud resolve endpoint
+        do {
+            let res = try await requestJSON(
+                path: "/resolve",
+                queryItems: [URLQueryItem(name: "url", value: canonical)]
+            )
+            guard let dict = res as? [String: Any] else { return nil }
+            let kind = (dict["kind"] as? String)?.lowercased() ?? ""
+
+            if kind == "playlist" {
+                if let release = normalizePlaylist(dict, forceKind: .playlist) {
+                    onProgress(1, 2)
+                    let hydrated = await hydrateReleaseTracks(release, forceRefresh: true)
+                    onProgress(2, 2)
+                    ReleaseCacheManager.shared.set(hydrated)
+                    return hydrated
+                }
+            } else if kind == "track" {
+                if let track = normalizeTrack(dict) {
+                    let release = ReleaseItem(
+                        id: "sc_track_\(track.rawId)",
+                        title: track.title,
+                        artist: track.artist,
+                        coverUrl: track.coverUrl,
+                        kind: .single,
+                        trackCount: 1,
+                        tracks: [track]
+                    )
+                    onProgress(1, 1)
+                    ReleaseCacheManager.shared.set(release)
+                    return release
+                }
+            }
+        } catch {
+            print("[SoundCloudService] importPlaylistFromUrl resolve error: \(error)")
+        }
+
+        // Fallback: If resolve failed or URL is slug, try searchReleases
+        let cleanQuery = canonical
+            .replacingOccurrences(of: "https://soundcloud.com/", with: "")
+            .replacingOccurrences(of: "http://soundcloud.com/", with: "")
+            .replacingOccurrences(of: "/", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanQuery.isEmpty {
+            let found = await searchReleases(query: cleanQuery, limit: 1)
+            if let first = found.first {
+                onProgress(1, 2)
+                let hydrated = await hydrateReleaseTracks(first, forceRefresh: true)
+                onProgress(2, 2)
+                ReleaseCacheManager.shared.set(hydrated)
+                return hydrated
+            }
+        }
+
+        return nil
+    }
+
     // MARK: - Algorithm 1: Personal Wave ("Моя волна" - Port of getPersonalWaveTracks)
 
     public func getPersonalWaveTracks(
