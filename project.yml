@@ -26,6 +26,10 @@ targets:
         NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSPhotoLibraryUsageDescription: "Для выбора и обрезки аватара профиля"
+        CFBundleURLTypes:
+          - CFBundleURLName: com.amymusic.ios
+            CFBundleURLSchemes:
+              - amymusic
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.amymusic.ios

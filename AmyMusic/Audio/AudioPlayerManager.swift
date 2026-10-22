@@ -4,6 +4,7 @@ import MediaPlayer
 import Observation
 import SwiftUI
 import UIKit
+import AuthenticationServices
 
 // MARK: - Native iOS 26 Dual-Engine Audio Player, 10-Band EQ & Queue Manager
 // Port of src/audio/AudioPlayerContext.jsx
@@ -55,6 +56,7 @@ public final class AudioPlayerManager {
             Task {
                 await SoundCloudService.shared.updateSettings(settings)
                 await YandexMusicService.shared.updateSettings(settings)
+                await SpotifyService.shared.updateSettings(settings)
                 await loadInitialRecommendations()
             }
         }
@@ -65,6 +67,7 @@ public final class AudioPlayerManager {
         Task {
             await SoundCloudService.shared.updateSettings(settings)
             await YandexMusicService.shared.updateSettings(settings)
+            await SpotifyService.shared.updateSettings(settings)
             await loadInitialRecommendations()
         }
     }
@@ -100,6 +103,7 @@ public final class AudioPlayerManager {
         Task {
             await SoundCloudService.shared.updateSettings(settings)
             await YandexMusicService.shared.updateSettings(settings)
+            await SpotifyService.shared.updateSettings(settings)
             await loadInitialRecommendations()
         }
     }
@@ -636,8 +640,14 @@ public final class AudioPlayerManager {
             return url
         }
 
-        if track.source == .yandex {
-            if let bridged = await YandexMusicService.shared.resolvePlayableSoundCloudTrack(for: track),
+        if track.source == .yandex || track.source == .spotify {
+            let bridged: Track?
+            if track.source == .yandex {
+                bridged = await YandexMusicService.shared.resolvePlayableSoundCloudTrack(for: track)
+            } else {
+                bridged = await SpotifyService.shared.resolvePlayableSoundCloudTrack(for: track)
+            }
+            if let bridged,
                let resolved = await SoundCloudService.shared.resolveStreamUrl(for: bridged, quality: settings.audioQuality),
                let url = URL(string: resolved.url) {
                 return url
@@ -673,6 +683,10 @@ public final class AudioPlayerManager {
                     if let bridged = await YandexMusicService.shared.resolvePlayableSoundCloudTrack(for: target) {
                         target = bridged
                     }
+                } else if target.source == .spotify {
+                    if let bridged = await SpotifyService.shared.resolvePlayableSoundCloudTrack(for: target) {
+                        target = bridged
+                    }
                 }
                 if let resolved = await SoundCloudService.shared.resolveStreamUrl(for: target, quality: settings.audioQuality) {
                     if let idx = self.queue.firstIndex(where: { $0.id == upcoming.id }) {
@@ -683,6 +697,63 @@ public final class AudioPlayerManager {
                 }
             }
         }
+    }
+
+    // MARK: - Spotify OAuth2 Authorization
+
+    public func startSpotifyLogin() async throws {
+        let verifier = SpotifyPKCE.generateCodeVerifier()
+        let challenge = SpotifyPKCE.generateCodeChallenge(from: verifier)
+        let clientId = settings.spotifyClientId.isEmpty ? "88974a2b71d846d5aa4f80631542e021" : settings.spotifyClientId
+        let redirectUri = "amymusic://spotify-callback"
+        let scope = "user-read-private playlist-read-private playlist-read-collaborative user-library-read"
+
+        var components = URLComponents(string: "https://accounts.spotify.com/authorize")!
+        components.queryItems = [
+            URLQueryItem(name: "client_id", value: clientId),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "redirect_uri", value: redirectUri),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "scope", value: scope)
+        ]
+        guard let authUrl = components.url else { throw URLError(.badURL) }
+
+        let callbackUrl = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            let session = ASWebAuthenticationSession(
+                url: authUrl,
+                callbackURLScheme: "amymusic"
+            ) { callbackURL, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let callbackURL {
+                    continuation.resume(returning: callbackURL)
+                } else {
+                    continuation.resume(throwing: URLError(.cancelled))
+                }
+            }
+            session.presentationContextProvider = SpotifyAuthPresentationContext.shared
+            session.prefersEphemeralWebBrowserSession = false
+            session.start()
+        }
+
+        guard let components = URLComponents(url: callbackUrl, resolvingAgainstBaseURL: false),
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            throw URLError(.badServerResponse)
+        }
+
+        _ = try await SpotifyService.shared.exchangeCodeForToken(code: code, codeVerifier: verifier)
+        persistSettings()
+    }
+
+    public func logoutSpotify() {
+        settings.spotifyAccessToken = ""
+        settings.spotifyRefreshToken = ""
+        settings.spotifyTokenExpiry = nil
+        settings.spotifyUserDisplayName = ""
+        settings.spotifyUserAvatar = ""
+        settings.spotifyUserId = ""
+        persistSettings()
     }
 
     private func applyVolumeToActiveEngine() {

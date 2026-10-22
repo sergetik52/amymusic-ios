@@ -89,6 +89,8 @@ public struct SettingsAndProfileView: View {
     @State private var isAvatarCropperOpen: Bool = false
     @State private var testProxyStatus: String? = nil
     @State private var isTestingProxy: Bool = false
+    @State private var isLoggingInSpotify: Bool = false
+    @State private var spotifyLoginError: String? = nil
 
     public var body: some View {
         NavigationStack {
@@ -508,6 +510,115 @@ public struct SettingsAndProfileView: View {
                         .onChange(of: player.settings.yandexOAuthToken) { _, _ in
                             player.persistState()
                         }
+                }
+            }
+            .padding(18)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            // MARK: - Spotify Integration (OAuth2 PKCE & Web API)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.green)
+                    Text("Spotify")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundStyle(.white)
+                }
+
+                Text("Авторизация через ваш личный аккаунт Spotify для переноса ваших плейлистов и любимых треков. Все треки играют бесплатно через SoundCloud.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineSpacing(2)
+
+                if !player.settings.spotifyAccessToken.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            if !player.settings.spotifyUserAvatar.isEmpty, let url = URL(string: player.settings.spotifyUserAvatar) {
+                                AsyncImage(url: url) { phase in
+                                    if let img = phase.image {
+                                        img.resizable().scaledToFill()
+                                    } else {
+                                        Color.green.opacity(0.3)
+                                    }
+                                }
+                                .frame(width: 44, height: 44)
+                                .clipShape(Circle())
+                            } else {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(.green)
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Text(player.settings.spotifyUserDisplayName.isEmpty ? "Пользователь Spotify" : player.settings.spotifyUserDisplayName)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(.white)
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.system(size: 13))
+                                }
+                                Text("Аккаунт подключен")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.green.opacity(0.9))
+                            }
+
+                            Spacer()
+
+                            Button {
+                                player.logoutSpotify()
+                            } label: {
+                                Text("Выйти")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.red)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(.red.opacity(0.12), in: Capsule())
+                            }
+                        }
+                        .padding(12)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                } else {
+                    Button {
+                        isLoggingInSpotify = true
+                        spotifyLoginError = nil
+                        Task {
+                            do {
+                                try await player.startSpotifyLogin()
+                                await MainActor.run {
+                                    isLoggingInSpotify = false
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    isLoggingInSpotify = false
+                                    spotifyLoginError = "Ошибка входа: \(error.localizedDescription)"
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isLoggingInSpotify {
+                                ProgressView().tint(.black).scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.right.circle.fill")
+                            }
+                            Text(isLoggingInSpotify ? "Подключение к Spotify..." : "Войти через Spotify")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.green.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.black)
+                    }
+                    .disabled(isLoggingInSpotify)
+
+                    if let error = spotifyLoginError {
+                        Text(error)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
             .padding(18)

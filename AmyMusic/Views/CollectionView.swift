@@ -292,22 +292,22 @@ public struct CreateOrImportPlaylistSheetView: View {
                         .padding(18)
                         .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
 
-                        // Yandex Music / SoundCloud URL Importer Card
+                        // Yandex Music / SoundCloud / Spotify URL Importer Card
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 8) {
                                 Image(systemName: "link.badge.plus")
                                     .foregroundStyle(.white)
-                                Text("Импорт из Яндекс Музыки / SoundCloud")
-                                    .font(.system(size: 17, weight: .black))
+                                Text("Импорт из Яндекс Музыки / SoundCloud / Spotify")
+                                    .font(.system(size: 16, weight: .black))
                                     .foregroundStyle(.white)
                             }
 
-                            Text("Вставьте ссылку на плейлист, альбом или трек из Яндекс Музыки (music.yandex.ru) или SoundCloud (soundcloud.com)")
+                            Text("Вставьте ссылку на плейлист, альбом или трек из Яндекс Музыки, SoundCloud или Spotify (open.spotify.com)")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.55))
 
                             HStack(spacing: 8) {
-                                TextField("Ссылка на плейлист или альбом...", text: $yandexUrlInput)
+                                TextField("Ссылка (music.yandex.ru, soundcloud.com или open.spotify.com)...", text: $yandexUrlInput)
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundStyle(.white)
                                     .autocorrectionDisabled()
@@ -403,9 +403,17 @@ public struct CreateOrImportPlaylistSheetView: View {
         importTotal = 0
 
         Task {
+            let isSpotify = url.contains("spotify.com") || url.contains("spotify.link")
             let isSoundCloud = url.contains("soundcloud.com") || url.contains("on.soundcloud.com")
             let result: ReleaseItem?
-            if isSoundCloud {
+            if isSpotify {
+                result = await SpotifyService.shared.importPlaylistFromUrl(url) { cur, tot in
+                    Task { @MainActor in
+                        self.importCurrent = cur
+                        self.importTotal = tot
+                    }
+                }
+            } else if isSoundCloud {
                 result = await SoundCloudService.shared.importPlaylistFromUrl(url) { cur, tot in
                     Task { @MainActor in
                         self.importCurrent = cur

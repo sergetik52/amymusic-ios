@@ -41,6 +41,7 @@ public struct ArtistRef: Codable, Hashable, Identifiable, Sendable {
 public enum TrackSource: String, Codable, Sendable {
     case soundcloud
     case yandex
+    case spotify
 }
 
 public enum ChartProgress: String, Codable, Sendable {
@@ -524,6 +525,15 @@ public struct AppProfileSettings: Codable, Equatable, Sendable {
     public var soundCloudClientSecret: String = ""
     public var customHttpProxies: String = ""
     public var yandexOAuthToken: String = ""
+
+    // Spotify Integration (OAuth2 PKCE + Web API)
+    public var spotifyClientId: String = "88974a2b71d846d5aa4f80631542e021"
+    public var spotifyAccessToken: String = ""
+    public var spotifyRefreshToken: String = ""
+    public var spotifyTokenExpiry: Date? = nil
+    public var spotifyUserDisplayName: String = ""
+    public var spotifyUserAvatar: String = ""
+    public var spotifyUserId: String = ""
 
     // Proxy & Anti-Blocking
     public var soundCloudProxyEnabled: Bool = true

@@ -1,0 +1,637 @@
+import Foundation
+import AuthenticationServices
+import CryptoKit
+
+// MARK: - Spotify Native Service
+// Supports Method 2 (Official Web API with OAuth2 PKCE login) + Method 1 (Public Embed Parser fallback)
+// Tracks are bridged to SoundCloud for free 320 kbps playback.
+
+public actor SpotifyService {
+    public static let shared = SpotifyService()
+
+    private let apiBase = "https://api.spotify.com/v1"
+    private let tokenUrl = "https://accounts.spotify.com/api/token"
+    private let authUrl = "https://accounts.spotify.com/authorize"
+    private let redirectUri = "amymusic://spotify-callback"
+
+    private var settings: AppProfileSettings = AppProfileSettings()
+    private var resolvedTrackCache: [String: Track] = [:]
+
+    public func updateSettings(_ settings: AppProfileSettings) {
+        self.settings = settings
+    }
+
+    // MARK: - OAuth 2.0 PKCE Flow (Method 2: Full Account Authorization)
+
+    public func getValidAccessToken() async -> String? {
+        let token = settings.spotifyAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { return nil }
+
+        if let expiry = settings.spotifyTokenExpiry, expiry < Date().addingTimeInterval(60) {
+            // Token expired or about to expire, refresh it!
+            if let refreshed = await refreshAccessToken() {
+                return refreshed
+            }
+        }
+        return token
+    }
+
+    public func refreshAccessToken() async -> String? {
+        let refreshToken = settings.spotifyRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !refreshToken.isEmpty else { return nil }
+
+        let clientId = settings.spotifyClientId.isEmpty ? "88974a2b71d846d5aa4f80631542e021" : settings.spotifyClientId
+
+        guard let url = URL(string: tokenUrl) else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        let bodyParams = [
+            "grant_type=refresh_token",
+            "refresh_token=\(refreshToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? refreshToken)",
+            "client_id=\(clientId)"
+        ].joined(separator: "&")
+        request.httpBody = bodyParams.data(using: .utf8)
+
+        do {
+            let session = SoundCloudProxyManager.shared.session(for: self.settings)
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let newAccess = json["access_token"] as? String else {
+                return nil
+            }
+
+            self.settings.spotifyAccessToken = newAccess
+            if let newRefresh = json["refresh_token"] as? String {
+                self.settings.spotifyRefreshToken = newRefresh
+            }
+            if let expiresIn = json["expires_in"] as? Double {
+                self.settings.spotifyTokenExpiry = Date().addingTimeInterval(expiresIn)
+            }
+            return newAccess
+        } catch {
+            return nil
+        }
+    }
+
+    public func exchangeCodeForToken(code: String, codeVerifier: String) async throws -> (accessToken: String, refreshToken: String, expiry: Date) {
+        guard let url = URL(string: tokenUrl) else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        let clientId = settings.spotifyClientId.isEmpty ? "88974a2b71d846d5aa4f80631542e021" : settings.spotifyClientId
+
+        let bodyParams = [
+            "grant_type=authorization_code",
+            "code=\(code.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? code)",
+            "redirect_uri=\(redirectUri.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? redirectUri)",
+            "client_id=\(clientId)",
+            "code_verifier=\(codeVerifier)"
+        ].joined(separator: "&")
+        request.httpBody = bodyParams.data(using: .utf8)
+
+        let session = SoundCloudProxyManager.shared.session(for: self.settings)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let access = json["access_token"] as? String else {
+            throw URLError(.badServerResponse)
+        }
+
+        let refresh = (json["refresh_token"] as? String) ?? ""
+        let expiresIn = (json["expires_in"] as? Double) ?? 3600
+        let expiry = Date().addingTimeInterval(expiresIn)
+
+        self.settings.spotifyAccessToken = access
+        self.settings.spotifyRefreshToken = refresh
+        self.settings.spotifyTokenExpiry = expiry
+
+        // Fetch User Profile
+        if let profile = await fetchCurrentUserProfile(token: access) {
+            self.settings.spotifyUserId = (profile["id"] as? String) ?? ""
+            self.settings.spotifyUserDisplayName = (profile["display_name"] as? String) ?? ""
+            if let images = profile["images"] as? [[String: Any]], let firstImg = images.first?["url"] as? String {
+                self.settings.spotifyUserAvatar = firstImg
+            }
+        }
+
+        return (access, refresh, expiry)
+    }
+
+    public func fetchCurrentUserProfile(token: String) async -> [String: Any]? {
+        guard let url = URL(string: "\(apiBase)/me") else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let session = SoundCloudProxyManager.shared.session(for: self.settings)
+        guard let (data, response) = try? await session.data(for: req),
+              let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json
+    }
+
+    // MARK: - Method 2: Official Web API Fetching
+
+    private func requestSpotifyAPI(path: String, queryItems: [URLQueryItem] = []) async throws -> [String: Any] {
+        guard let token = await getValidAccessToken() else { throw URLError(.userAuthenticationRequired) }
+        var components = URLComponents(string: "\(apiBase)\(path)")
+        if !queryItems.isEmpty {
+            components?.queryItems = queryItems
+        }
+        guard let url = components?.url else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let session = SoundCloudProxyManager.shared.session(for: self.settings)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw URLError(.badServerResponse)
+        }
+        return json
+    }
+
+    public func fetchUserPlaylists() async -> [ReleaseItem] {
+        do {
+            let root = try await requestSpotifyAPI(path: "/me/playlists", queryItems: [
+                URLQueryItem(name: "limit", value: "50")
+            ])
+            let items = (root["items"] as? [[String: Any]]) ?? []
+            return items.compactMap { dict in
+                guard let id = dict["id"] as? String,
+                      let title = dict["name"] as? String else { return nil }
+                let owner = (dict["owner"] as? [String: Any])?["display_name"] as? String ?? "Spotify"
+                let images = dict["images"] as? [[String: Any]]
+                let coverUrl = images?.first?["url"] as? String
+                let tracksTotal = (dict["tracks"] as? [String: Any])?["total"] as? Int ?? 0
+
+                return ReleaseItem(
+                    id: "spotify_pl_\(id)",
+                    title: title,
+                    artist: owner,
+                    coverUrl: coverUrl,
+                    kind: .userPlaylist,
+                    trackCount: tracksTotal,
+                    tracks: []
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
+    public func fetchPlaylistWebAPI(id: String) async -> (title: String, artist: String, coverUrl: String?, tracks: [Track])? {
+        do {
+            let root = try await requestSpotifyAPI(path: "/playlists/\(id)")
+            let title = (root["name"] as? String) ?? "Плейлист Spotify"
+            let owner = (root["owner"] as? [String: Any])?["display_name"] as? String ?? "Spotify"
+            let images = root["images"] as? [[String: Any]]
+            let coverUrl = images?.first?["url"] as? String
+
+            let tracksObj = root["tracks"] as? [String: Any]
+            let items = (tracksObj?["items"] as? [[String: Any]]) ?? []
+            var tracks: [Track] = []
+
+            for item in items {
+                guard let tDict = item["track"] as? [String: Any],
+                      let tId = tDict["id"] as? String,
+                      let tTitle = tDict["name"] as? String else { continue }
+
+                let rawArtists = (tDict["artists"] as? [[String: Any]]) ?? []
+                let artistRefs: [ArtistRef] = rawArtists.compactMap { a in
+                    guard let aName = a["name"] as? String else { return nil }
+                    let aId = (a["id"] as? String) ?? aName
+                    return ArtistRef(id: aId, name: aName, avatarUrl: nil)
+                }
+                let artistName = artistRefs.isEmpty ? "Неизвестный артист" : artistRefs.map(\.name).joined(separator: ", ")
+                let albumDict = tDict["album"] as? [String: Any]
+                let albumImages = albumDict?["images"] as? [[String: Any]]
+                let tCover = albumImages?.first?["url"] as? String ?? coverUrl
+                let durationMs = (tDict["duration_ms"] as? Double) ?? 180_000
+                let explicit = (tDict["explicit"] as? Bool) ?? false
+
+                tracks.append(Track(
+                    id: "spotify_\(tId)",
+                    rawId: tId,
+                    title: tTitle,
+                    rawTitle: tTitle,
+                    artist: artistName,
+                    artists: artistRefs,
+                    coverUrl: tCover,
+                    duration: durationMs / 1000.0,
+                    isExplicit: explicit,
+                    source: .spotify,
+                    palette: TrackPalette.defaultPalette
+                ))
+            }
+
+            return (title, owner, coverUrl, tracks)
+        } catch {
+            return nil
+        }
+    }
+
+    public func fetchAlbumWebAPI(id: String) async -> (title: String, artist: String, coverUrl: String?, tracks: [Track])? {
+        do {
+            let root = try await requestSpotifyAPI(path: "/albums/\(id)")
+            let title = (root["name"] as? String) ?? "Альбом Spotify"
+            let rawArtists = (root["artists"] as? [[String: Any]]) ?? []
+            let artistStr = rawArtists.compactMap { $0["name"] as? String }.joined(separator: ", ")
+            let images = root["images"] as? [[String: Any]]
+            let coverUrl = images?.first?["url"] as? String
+
+            let tracksObj = root["tracks"] as? [String: Any]
+            let items = (tracksObj?["items"] as? [[String: Any]]) ?? []
+            var tracks: [Track] = []
+
+            for tDict in items {
+                guard let tId = tDict["id"] as? String,
+                      let tTitle = tDict["name"] as? String else { continue }
+
+                let tArtists = (tDict["artists"] as? [[String: Any]]) ?? []
+                let artistRefs: [ArtistRef] = tArtists.compactMap { a in
+                    guard let aName = a["name"] as? String else { return nil }
+                    let aId = (a["id"] as? String) ?? aName
+                    return ArtistRef(id: aId, name: aName, avatarUrl: nil)
+                }
+                let trackArtist = artistRefs.isEmpty ? artistStr : artistRefs.map(\.name).joined(separator: ", ")
+                let durationMs = (tDict["duration_ms"] as? Double) ?? 180_000
+                let explicit = (tDict["explicit"] as? Bool) ?? false
+
+                tracks.append(Track(
+                    id: "spotify_\(tId)",
+                    rawId: tId,
+                    title: tTitle,
+                    rawTitle: tTitle,
+                    artist: trackArtist,
+                    artists: artistRefs,
+                    coverUrl: coverUrl,
+                    duration: durationMs / 1000.0,
+                    isExplicit: explicit,
+                    source: .spotify,
+                    palette: TrackPalette.defaultPalette
+                ))
+            }
+            return (title, artistStr.isEmpty ? "Spotify" : artistStr, coverUrl, tracks)
+        } catch {
+            return nil
+        }
+    }
+
+    public func fetchTrackWebAPI(id: String) async -> Track? {
+        do {
+            let tDict = try await requestSpotifyAPI(path: "/tracks/\(id)")
+            guard let tId = tDict["id"] as? String,
+                  let tTitle = tDict["name"] as? String else { return nil }
+
+            let rawArtists = (tDict["artists"] as? [[String: Any]]) ?? []
+            let artistRefs: [ArtistRef] = rawArtists.compactMap { a in
+                guard let aName = a["name"] as? String else { return nil }
+                let aId = (a["id"] as? String) ?? aName
+                return ArtistRef(id: aId, name: aName, avatarUrl: nil)
+            }
+            let artistName = artistRefs.isEmpty ? "Неизвестный артист" : artistRefs.map(\.name).joined(separator: ", ")
+            let albumDict = tDict["album"] as? [String: Any]
+            let albumImages = albumDict?["images"] as? [[String: Any]]
+            let tCover = albumImages?.first?["url"] as? String
+            let durationMs = (tDict["duration_ms"] as? Double) ?? 180_000
+            let explicit = (tDict["explicit"] as? Bool) ?? false
+
+            return Track(
+                id: "spotify_\(tId)",
+                rawId: tId,
+                title: tTitle,
+                rawTitle: tTitle,
+                artist: artistName,
+                artists: artistRefs,
+                coverUrl: tCover,
+                duration: durationMs / 1000.0,
+                isExplicit: explicit,
+                source: .spotify,
+                palette: TrackPalette.defaultPalette
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - Method 1: Public Embed Fallback Parser (No Auth / Registration Needed!)
+
+    public func fetchEmbedRelease(type: String, id: String) async -> (title: String, artist: String, coverUrl: String?, tracks: [Track])? {
+        guard let url = URL(string: "https://open.spotify.com/embed/\(type)/\(id)") else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue("ru,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+
+        let session = SoundCloudProxyManager.shared.session(for: self.settings)
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+              let html = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        // Extract JSON from <script id="__NEXT_DATA__" type="application/json">...</script>
+        guard let scriptStart = html.range(of: "<script id=\"__NEXT_DATA__\" type=\"application/json\">"),
+              let scriptEnd = html[scriptStart.upperBound...].range(of: "</script>") else {
+            return nil
+        }
+
+        let jsonString = String(html[scriptStart.upperBound..<scriptEnd.lowerBound])
+        guard let jsonData = jsonString.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let props = root["props"] as? [String: Any],
+              let pageProps = props["pageProps"] as? [String: Any],
+              let state = pageProps["state"] as? [String: Any],
+              let stateData = state["data"] as? [String: Any],
+              let entity = stateData["entity"] as? [String: Any] else {
+            return nil
+        }
+
+        let title = (entity["title"] as? String) ?? (entity["name"] as? String) ?? "Spotify \(type.capitalized)"
+        let subtitle = (entity["subtitle"] as? String) ?? "Spotify"
+        let coverSources = (entity["coverArt"] as? [String: Any])?["sources"] as? [[String: Any]]
+        let coverUrl = coverSources?.first?["url"] as? String
+
+        let rawTracks = (entity["trackList"] as? [[String: Any]]) ?? []
+        var tracks: [Track] = []
+
+        for (idx, tDict) in rawTracks.enumerated() {
+            guard let tTitle = tDict["title"] as? String else { continue }
+            let tArtist = (tDict["subtitle"] as? String) ?? subtitle
+            let durationMs = (tDict["duration"] as? Double) ?? 180_000
+            let explicit = (tDict["isExplicit"] as? Bool) ?? false
+            let uri = (tDict["uri"] as? String) ?? "spotify:track:\(idx)"
+            let tId = uri.replacingOccurrences(of: "spotify:track:", with: "")
+
+            let artistRefs = tArtist.components(separatedBy: CharacterSet(charactersIn: ",/&")).map {
+                let clean = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                return ArtistRef(id: clean, name: clean, avatarUrl: nil)
+            }
+
+            tracks.append(Track(
+                id: "spotify_\(tId)",
+                rawId: tId,
+                title: tTitle,
+                rawTitle: tTitle,
+                artist: tArtist,
+                artists: artistRefs,
+                coverUrl: coverUrl,
+                duration: durationMs / 1000.0,
+                isExplicit: explicit,
+                source: .spotify,
+                palette: TrackPalette.defaultPalette
+            ))
+        }
+
+        return (title, subtitle, coverUrl, tracks)
+    }
+
+    // MARK: - Playlist / Album Link Importer (0.2s Instant Import + Parallel SoundCloud Resolution)
+
+    public func importPlaylistFromUrl(
+        _ urlString: String,
+        onProgress: @escaping @Sendable (Int, Int) -> Void
+    ) async -> ReleaseItem? {
+        let trimmedInput = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedInput.isEmpty else { return nil }
+
+        // Pre-resolve shortlinks (e.g. spotify.link/...)
+        var targetUrl = await SoundCloudService.resolveRedirectUrl(trimmedInput)
+        targetUrl = targetUrl.components(separatedBy: "?").first ?? targetUrl
+
+        var releaseTitle = "Spotify Плейлист"
+        var releaseArtist = "Spotify"
+        var releaseCover: String?
+        var rawTracks: [Track] = []
+
+        // Format 1: Track -> open.spotify.com/track/{id}
+        if let trackMatch = targetUrl.range(of: #"open\.spotify\.com/track/([a-zA-Z0-9]+)"#, options: .regularExpression) {
+            let matchedStr = String(targetUrl[trackMatch])
+            let trackId = matchedStr.replacingOccurrences(of: "open.spotify.com/track/", with: "")
+
+            var singleTrack: Track? = nil
+            if await getValidAccessToken() != nil {
+                singleTrack = await fetchTrackWebAPI(id: trackId)
+            }
+            if singleTrack == nil {
+                if let embed = await fetchEmbedRelease(type: "track", id: trackId) {
+                    singleTrack = embed.tracks.first
+                    releaseTitle = embed.title
+                    releaseArtist = embed.artist
+                    releaseCover = embed.coverUrl
+                }
+            }
+            if let single = singleTrack {
+                rawTracks = [single]
+                releaseTitle = single.title
+                releaseArtist = single.artist
+                releaseCover = single.coverUrl
+            }
+        }
+        // Format 2: Album -> open.spotify.com/album/{id}
+        else if let albumMatch = targetUrl.range(of: #"open\.spotify\.com/album/([a-zA-Z0-9]+)"#, options: .regularExpression) {
+            let matchedStr = String(targetUrl[albumMatch])
+            let albumId = matchedStr.replacingOccurrences(of: "open.spotify.com/album/", with: "")
+
+            var result: (title: String, artist: String, coverUrl: String?, tracks: [Track])? = nil
+            if await getValidAccessToken() != nil {
+                result = await fetchAlbumWebAPI(id: albumId)
+            }
+            if result == nil {
+                result = await fetchEmbedRelease(type: "album", id: albumId)
+            }
+            if let r = result {
+                releaseTitle = r.title
+                releaseArtist = r.artist
+                releaseCover = r.coverUrl
+                rawTracks = r.tracks
+            }
+        }
+        // Format 3: Playlist -> open.spotify.com/playlist/{id}
+        else if let plMatch = targetUrl.range(of: #"open\.spotify\.com/playlist/([a-zA-Z0-9]+)"#, options: .regularExpression) {
+            let matchedStr = String(targetUrl[plMatch])
+            let plId = matchedStr.replacingOccurrences(of: "open.spotify.com/playlist/", with: "")
+
+            var result: (title: String, artist: String, coverUrl: String?, tracks: [Track])? = nil
+            if await getValidAccessToken() != nil {
+                result = await fetchPlaylistWebAPI(id: plId)
+            }
+            if result == nil {
+                result = await fetchEmbedRelease(type: "playlist", id: plId)
+            }
+            if let r = result {
+                releaseTitle = r.title
+                releaseArtist = r.artist
+                releaseCover = r.coverUrl
+                rawTracks = r.tracks
+            }
+        }
+
+        guard !rawTracks.isEmpty else { return nil }
+
+        let releaseId = "spotify_pl_\(UUID().uuidString)"
+        let imported = ReleaseItem(
+            id: releaseId,
+            title: releaseTitle,
+            artist: releaseArtist,
+            coverUrl: releaseCover ?? rawTracks.first?.coverUrl,
+            kind: .userPlaylist,
+            trackCount: rawTracks.count,
+            tracks: rawTracks
+        )
+        ReleaseCacheManager.shared.set(imported)
+
+        // Launch high-speed background SoundCloud stream resolution (6 concurrent workers)
+        Task.detached {
+            await self.resolveReleaseTracksInBackground(releaseId: releaseId, tracks: rawTracks, onProgress: onProgress)
+        }
+
+        return imported
+    }
+
+    // MARK: - Parallel Background SoundCloud Track Resolution (6x Concurrency)
+
+    public func resolveReleaseTracksInBackground(
+        releaseId: String,
+        tracks: [Track],
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async {
+        guard !tracks.isEmpty else { return }
+
+        let total = tracks.count
+        var resolvedDict: [Int: Track] = [:]
+
+        await withTaskGroup(of: (Int, Track?).self) { group in
+            var trackIndex = 0
+            let maxConcurrent = 6
+
+            while trackIndex < min(maxConcurrent, total) {
+                let idx = trackIndex
+                let tr = tracks[idx]
+                group.addTask {
+                    let resolved = await self.resolvePlayableSoundCloudTrack(for: tr)
+                    return (idx, resolved)
+                }
+                trackIndex += 1
+            }
+
+            var completedCount = 0
+            for await (idx, resolved) in group {
+                completedCount += 1
+                onProgress?(completedCount, total)
+                if let resolved {
+                    resolvedDict[idx] = resolved
+                }
+
+                if trackIndex < total {
+                    let nextIdx = trackIndex
+                    let nextTr = tracks[nextIdx]
+                    group.addTask {
+                        let res = await self.resolvePlayableSoundCloudTrack(for: nextTr)
+                        return (nextIdx, res)
+                    }
+                    trackIndex += 1
+                }
+            }
+        }
+
+        if var cachedRelease = ReleaseCacheManager.shared.get(for: releaseId) {
+            var updatedTracks: [Track] = []
+            for (idx, orig) in tracks.enumerated() {
+                if let resolved = resolvedDict[idx] {
+                    updatedTracks.append(resolved)
+                } else {
+                    updatedTracks.append(orig)
+                }
+            }
+            cachedRelease.tracks = updatedTracks
+            ReleaseCacheManager.shared.set(cachedRelease)
+        }
+    }
+
+    // MARK: - Resolve Spotify Track via SoundCloud API (Playable Stream Bridge)
+
+    public func resolvePlayableSoundCloudTrack(for spotifyTrack: Track) async -> Track? {
+        if let cached = resolvedTrackCache[spotifyTrack.id] {
+            return cached
+        }
+
+        // 1. Full artist + title
+        let q1 = "\(spotifyTrack.artist) \(spotifyTrack.title)"
+        let res1 = await SoundCloudService.shared.searchTracks(query: q1, limit: 5)
+        var matched = res1.first(where: { !$0.isSnippet }) ?? res1.first
+
+        // 2. Primary artist + clean title
+        if matched == nil {
+            let primaryArtist = spotifyTrack.artist.components(separatedBy: CharacterSet(charactersIn: ",&×/;")).first?.trimmingCharacters(in: .whitespaces) ?? spotifyTrack.artist
+            let cleanTitle = spotifyTrack.title.replacingOccurrences(of: #"(?i)[\(\[].*?[\)\]]"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            let q2 = "\(primaryArtist) \(cleanTitle)"
+            let res2 = await SoundCloudService.shared.searchTracks(query: q2, limit: 5)
+            matched = res2.first(where: { !$0.isSnippet }) ?? res2.first
+        }
+
+        // 3. Title only
+        if matched == nil {
+            let res3 = await SoundCloudService.shared.searchTracks(query: spotifyTrack.title, limit: 3)
+            matched = res3.first(where: { !$0.isSnippet }) ?? res3.first
+        }
+
+        guard var best = matched else { return nil }
+
+        // Retain Spotify high-res album cover & palette
+        if let cover = spotifyTrack.coverUrl, !cover.isEmpty {
+            best.coverUrl = cover
+        }
+        best.palette = spotifyTrack.palette
+
+        resolvedTrackCache[spotifyTrack.id] = best
+        return best
+    }
+}
+
+// MARK: - PKCE Helper for Spotify OAuth2
+
+public enum SpotifyPKCE {
+    public static func generateCodeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 64)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    public static func generateCodeChallenge(from verifier: String) -> String {
+        guard let data = verifier.data(using: .utf8) else { return "" }
+        let hashed = SHA256.hash(data: data)
+        return Data(hashed).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+            .trimmingCharacters(in: .whitespaces)
+    }
+}
+
+// MARK: - ASWebAuthenticationSession Context Provider
+
+@MainActor
+public final class SpotifyAuthPresentationContext: NSObject, ASWebAuthenticationPresentationContextProviding {
+    public static let shared = SpotifyAuthPresentationContext()
+
+    public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        guard let windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first else {
+            return ASPresentationAnchor()
+        }
+        return window
+    }
+}
