@@ -85,7 +85,16 @@ public actor SpotifyService {
         }
     }
 
-    public func exchangeCodeForToken(code: String, codeVerifier: String) async throws -> (accessToken: String, refreshToken: String, expiry: Date) {
+    public struct SpotifyAuthResult: Sendable {
+        public let accessToken: String
+        public let refreshToken: String
+        public let expiry: Date
+        public let userId: String
+        public let displayName: String
+        public let avatarUrl: String
+    }
+
+    public func exchangeCodeForToken(code: String, codeVerifier: String) async throws -> SpotifyAuthResult {
         guard let url = URL(string: tokenUrl) else { throw URLError(.badURL) }
         let clientId = settings.spotifyClientId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clientId.isEmpty else {
@@ -117,20 +126,34 @@ public actor SpotifyService {
         let expiresIn = (json["expires_in"] as? Double) ?? 3600
         let expiry = Date().addingTimeInterval(expiresIn)
 
-        self.settings.spotifyAccessToken = access
-        self.settings.spotifyRefreshToken = refresh
-        self.settings.spotifyTokenExpiry = expiry
+        var userId = ""
+        var displayName = ""
+        var avatarUrl = ""
 
         // Fetch User Profile
         if let profile = await fetchCurrentUserProfile(token: access) {
-            self.settings.spotifyUserId = (profile["id"] as? String) ?? ""
-            self.settings.spotifyUserDisplayName = (profile["display_name"] as? String) ?? ""
+            userId = (profile["id"] as? String) ?? ""
+            displayName = (profile["display_name"] as? String) ?? ""
             if let images = profile["images"] as? [[String: Any]], let firstImg = images.first?["url"] as? String {
-                self.settings.spotifyUserAvatar = firstImg
+                avatarUrl = firstImg
             }
         }
 
-        return (access, refresh, expiry)
+        self.settings.spotifyAccessToken = access
+        self.settings.spotifyRefreshToken = refresh
+        self.settings.spotifyTokenExpiry = expiry
+        self.settings.spotifyUserId = userId
+        self.settings.spotifyUserDisplayName = displayName
+        self.settings.spotifyUserAvatar = avatarUrl
+
+        return SpotifyAuthResult(
+            accessToken: access,
+            refreshToken: refresh,
+            expiry: expiry,
+            userId: userId,
+            displayName: displayName,
+            avatarUrl: avatarUrl
+        )
     }
 
     public func fetchCurrentUserProfile(token: String) async -> [String: Any]? {

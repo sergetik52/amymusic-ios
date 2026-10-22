@@ -751,8 +751,14 @@ public final class AudioPlayerManager {
             throw URLError(.badServerResponse)
         }
 
-        _ = try await SpotifyService.shared.exchangeCodeForToken(code: code, codeVerifier: verifier)
-        persistSettings()
+        let auth = try await SpotifyService.shared.exchangeCodeForToken(code: code, codeVerifier: verifier)
+        self.settings.spotifyAccessToken = auth.accessToken
+        self.settings.spotifyRefreshToken = auth.refreshToken
+        self.settings.spotifyTokenExpiry = auth.expiry
+        self.settings.spotifyUserId = auth.userId
+        self.settings.spotifyUserDisplayName = auth.displayName
+        self.settings.spotifyUserAvatar = auth.avatarUrl
+        self.persistSettings()
     }
 
     public func logoutSpotify() {
