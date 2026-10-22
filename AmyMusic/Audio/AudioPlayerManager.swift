@@ -802,12 +802,14 @@ public final class AudioPlayerManager {
         defer { importingSpotifyPlaylistIds.remove(item.id) }
 
         if let imported = await SpotifyService.shared.importSpotifyPlaylistById(spotifyId) {
-            if let existingIdx = self.userPlaylists.firstIndex(where: { $0.id == imported.id }) {
+            if let existingIdx = self.userPlaylists.firstIndex(where: {
+                $0.id == imported.id || $0.id == "spotify_pl_\(spotifyId)" || ($0.title == imported.title && $0.artist == imported.artist)
+            }) {
                 self.userPlaylists[existingIdx] = imported
             } else {
                 self.userPlaylists.insert(imported, at: 0)
             }
-            if let spIdx = self.spotifyUserPlaylists.firstIndex(where: { $0.id == item.id }) {
+            if let spIdx = self.spotifyUserPlaylists.firstIndex(where: { $0.id == item.id || $0.id == "spotify_pl_\(spotifyId)" }) {
                 self.spotifyUserPlaylists[spIdx].trackCount = imported.trackCount
             }
             self.persistState()

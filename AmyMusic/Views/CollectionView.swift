@@ -366,31 +366,48 @@ public struct CreateOrImportPlaylistSheetView: View {
                                                 if isImportingThis {
                                                     ProgressView().tint(.green)
                                                         .padding(.horizontal, 8)
-                                                } else if isAlreadyImported {
-                                                    HStack(spacing: 4) {
-                                                        Image(systemName: "checkmark.circle.fill")
-                                                        Text("В коллекции")
-                                                    }
-                                                    .font(.system(size: 11, weight: .bold))
-                                                    .foregroundStyle(.green)
-                                                    .padding(.horizontal, 10)
-                                                    .padding(.vertical, 5)
-                                                    .background(.green.opacity(0.14), in: Capsule())
                                                 } else {
+                                                    let existing = player.userPlaylists.first(where: {
+                                                        $0.id == pl.id || $0.id == "spotify_pl_\(cleanPlId)" || ($0.title == pl.title && $0.artist == pl.artist)
+                                                    })
+                                                    let hasIncompleteTracks = existing != nil && (existing?.trackCount ?? 0) < pl.trackCount
+
                                                     Button {
                                                         Task {
                                                             await player.importSpotifyUserPlaylist(pl)
                                                         }
                                                     } label: {
-                                                        HStack(spacing: 4) {
-                                                            Image(systemName: "arrow.down.circle.fill")
-                                                            Text("Перенести")
+                                                        if hasIncompleteTracks {
+                                                            HStack(spacing: 4) {
+                                                                Image(systemName: "arrow.triangle.2.circlepath")
+                                                                Text("Обновить (\(pl.trackCount))")
+                                                            }
+                                                            .font(.system(size: 11, weight: .bold))
+                                                            .foregroundStyle(.black)
+                                                            .padding(.horizontal, 10)
+                                                            .padding(.vertical, 6)
+                                                            .background(Color.green, in: Capsule())
+                                                        } else if isAlreadyImported {
+                                                            HStack(spacing: 4) {
+                                                                Image(systemName: "checkmark.circle.fill")
+                                                                Text("В коллекции")
+                                                            }
+                                                            .font(.system(size: 11, weight: .bold))
+                                                            .foregroundStyle(.green)
+                                                            .padding(.horizontal, 10)
+                                                            .padding(.vertical, 5)
+                                                            .background(.green.opacity(0.14), in: Capsule())
+                                                        } else {
+                                                            HStack(spacing: 4) {
+                                                                Image(systemName: "arrow.down.circle.fill")
+                                                                Text("Перенести")
+                                                            }
+                                                            .font(.system(size: 12, weight: .bold))
+                                                            .foregroundStyle(.black)
+                                                            .padding(.horizontal, 12)
+                                                            .padding(.vertical, 6)
+                                                            .background(Color.green, in: Capsule())
                                                         }
-                                                        .font(.system(size: 12, weight: .bold))
-                                                        .foregroundStyle(.black)
-                                                        .padding(.horizontal, 12)
-                                                        .padding(.vertical, 6)
-                                                        .background(Color.green, in: Capsule())
                                                     }
                                                 }
                                             }

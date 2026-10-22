@@ -401,6 +401,7 @@ public actor SpotifyService {
                 return 0
             }()
             var offset = items.count
+            let pageSize = 50
 
             while true {
                 if totalTracksCount > 0 && offset >= totalTracksCount { break }
@@ -409,7 +410,7 @@ public actor SpotifyService {
                         path: "/playlists/\(id)/tracks",
                         queryItems: [
                             URLQueryItem(name: "offset", value: "\(offset)"),
-                            URLQueryItem(name: "limit", value: "100")
+                            URLQueryItem(name: "limit", value: "\(pageSize)")
                         ],
                         tokenOverride: tokenOverride
                     )
@@ -421,8 +422,9 @@ public actor SpotifyService {
                         }
                     }
                     offset += pageItems.count
-                    if pageItems.count < 100 { break }
+                    if pageItems.count < pageSize { break }
                 } catch {
+                    print("[Spotify] fetch page error at offset \(offset): \(error)")
                     break
                 }
             }
