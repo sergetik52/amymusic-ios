@@ -8,6 +8,7 @@ xcuserdata/
 
 # Binary outputs & Archives
 *.ipa
+!AmyMusic.ipa
 *.xcarchive
 *.dSYM.zip
 *.dSYM
