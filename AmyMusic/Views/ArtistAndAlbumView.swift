@@ -436,6 +436,7 @@ public struct AlbumOrPlaylistSheetView: View {
     @State private var isLoading: Bool = false
     @State private var isCoverLightboxOpen: Bool = false
     @State private var pushedArtistId: String? = nil
+    @State private var isFullPlayerOpenLocally: Bool = false
 
     private var activeRelease: ReleaseItem {
         hydratedRelease ?? ReleaseCacheManager.shared.get(for: release.id) ?? release
@@ -684,7 +685,7 @@ public struct AlbumOrPlaylistSheetView: View {
                         PhoneLiquidGlassMiniPlayer(
                             player: player,
                             onOpenFull: {
-                                onOpenFullPlayer?()
+                                isFullPlayerOpenLocally = true
                             }
                         )
                         .padding(.horizontal, 14)
@@ -714,6 +715,23 @@ public struct AlbumOrPlaylistSheetView: View {
                 isLoading = true
                 hydratedRelease = await SoundCloudService.shared.hydrateReleaseTracks(release, forceRefresh: true)
                 isLoading = false
+            }
+            .sheet(isPresented: $isFullPlayerOpenLocally) {
+                FullPlayerOverlayView(
+                    player: player,
+                    isPresented: $isFullPlayerOpenLocally,
+                    onOpenArtist: { artistId in
+                        isFullPlayerOpenLocally = false
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            onOpenArtist(artistId)
+                        }
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(Color.amyBackground)
             }
         }
     }

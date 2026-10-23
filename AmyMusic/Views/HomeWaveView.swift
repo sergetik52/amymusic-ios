@@ -793,11 +793,11 @@ public struct WaveSeedModalView: View {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                             ForEach(artists.isEmpty ? defaultPopularArtists : artists) { artist in
-                                let isSelected = player.waveSeeds.contains(where: { $0.name.lowercased() == artist.name.lowercased() })
+                                let isSelected = player.waveSeeds.contains(where: { $0.id == artist.id })
                                 Button {
                                     UISelectionFeedbackGenerator().selectionChanged()
                                     if isSelected {
-                                        player.waveSeeds.removeAll { $0.name.lowercased() == artist.name.lowercased() }
+                                        player.waveSeeds.removeAll { $0.id == artist.id }
                                     } else {
                                         player.waveSeeds.append(WaveSeed(id: artist.id, name: artist.name, avatarUrl: artist.avatarUrl))
                                     }
