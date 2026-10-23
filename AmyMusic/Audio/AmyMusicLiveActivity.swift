@@ -170,26 +170,17 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
     private let service = "com.amymusic.shared"
     private let stateAccount = "widgetState"
     private let coverAccount = "widgetCover"
-    private let appGroup = "group.com.amymusic.ios"
+    private let accessGroup = "M5LW4HM9AJ.com.amymusic.ios"
 
     private init() {}
 
     public func saveSnapshot(_ snapshot: AmyMusicWidgetSnapshot) {
-        if let userDefaults = UserDefaults(suiteName: appGroup),
-           let data = try? JSONEncoder().encode(snapshot) {
-            userDefaults.set(data, forKey: stateAccount)
-        }
         if let data = try? JSONEncoder().encode(snapshot) {
             saveKeychain(data: data, account: stateAccount)
         }
     }
 
     public func loadSnapshot() -> AmyMusicWidgetSnapshot? {
-        if let userDefaults = UserDefaults(suiteName: appGroup),
-           let data = userDefaults.data(forKey: stateAccount),
-           let snapshot = try? JSONDecoder().decode(AmyMusicWidgetSnapshot.self, from: data) {
-            return snapshot
-        }
         if let data = loadKeychain(account: stateAccount),
            let snapshot = try? JSONDecoder().decode(AmyMusicWidgetSnapshot.self, from: data) {
             return snapshot
@@ -198,17 +189,10 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
     }
 
     public func saveCoverImageData(_ data: Data) {
-        if let userDefaults = UserDefaults(suiteName: appGroup) {
-            userDefaults.set(data, forKey: coverAccount)
-        }
         saveKeychain(data: data, account: coverAccount)
     }
 
     public func loadCoverImageData() -> Data? {
-        if let userDefaults = UserDefaults(suiteName: appGroup),
-           let data = userDefaults.data(forKey: coverAccount) {
-            return data
-        }
         return loadKeychain(account: coverAccount)
     }
 
@@ -228,10 +212,7 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
         }
     }
 
-    private let accessGroup = "M5LW4HM9AJ.com.amymusic.ios"
-
     private func saveKeychain(data: Data, account: String) {
-        // 1. Save to shared keychain access group
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -241,22 +222,10 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
         SecItemDelete(query as CFDictionary)
         query[kSecValueData as String] = data
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        let status = SecItemAdd(query as CFDictionary, nil)
-
-        // 2. Also save to default group as fallback
-        var fallbackQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(fallbackQuery as CFDictionary)
-        fallbackQuery[kSecValueData as String] = data
-        fallbackQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(fallbackQuery as CFDictionary, nil)
+        _ = SecItemAdd(query as CFDictionary, nil)
     }
 
     private func loadKeychain(account: String) -> Data? {
-        // 1. Try with shared accessGroup
         let queryWithGroup: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -266,24 +235,12 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
         var item: CFTypeRef?
-        var status = SecItemCopyMatching(queryWithGroup as CFDictionary, &item)
-        if status == errSecSuccess, let data = item as? Data {
-            return data
-        }
-
-        // 2. Fallback without accessGroup
-        let queryNoGroup: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        status = SecItemCopyMatching(queryNoGroup as CFDictionary, &item)
+        let status = SecItemCopyMatching(queryWithGroup as CFDictionary, &item)
         if status == errSecSuccess, let data = item as? Data {
             return data
         }
         return nil
     }
 }
+
 

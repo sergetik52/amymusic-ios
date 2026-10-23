@@ -196,13 +196,24 @@ struct AmyMusicPlayerWidgetEntryView: View {
     @ViewBuilder
     private var widgetContainerBackground: some View {
         switch family {
-        case .systemSmall:
+        case .systemSmall, .systemMedium, .systemLarge:
             if let uiImage = entry.coverImage {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: 16)
-                    .overlay(Color.black.opacity(0.48))
+                ZStack {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .blur(radius: 20)
+                        .overlay(Color.black.opacity(0.68))
+
+                    LinearGradient(
+                        colors: [
+                            Color(hex: entry.snapshot.accentHex).opacity(0.3),
+                            Color(hex: "#09090b").opacity(0.7)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
             } else {
                 LinearGradient(
                     colors: [Color(hex: entry.snapshot.accentHex).opacity(0.35), Color(hex: "#09090b")],
@@ -210,12 +221,6 @@ struct AmyMusicPlayerWidgetEntryView: View {
                     endPoint: .bottomTrailing
                 )
             }
-        case .systemMedium, .systemLarge:
-            LinearGradient(
-                colors: [Color(hex: "#151518"), Color(hex: "#0a0a0c")],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
         default:
             Color.clear
         }
@@ -229,7 +234,7 @@ struct SmallPlayerWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Top row: mini album cover with glowing border + like button
+            // Top row: mini album cover + like button
             HStack(alignment: .top) {
                 if let uiImage = entry.coverImage {
                     Image(uiImage: uiImage)
@@ -241,7 +246,7 @@ struct SmallPlayerWidgetView: View {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .stroke(Color.white.opacity(0.22), lineWidth: 1)
                         )
-                        .shadow(color: Color(hex: entry.snapshot.accentHex).opacity(0.45), radius: 6, x: 0, y: 2)
+                        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -326,7 +331,7 @@ struct MediumPlayerWidgetView: View {
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
                         )
-                        .shadow(color: Color(hex: entry.snapshot.accentHex).opacity(0.55), radius: 12, x: 0, y: 4)
+                        .shadow(color: Color.black.opacity(0.35), radius: 6, x: 0, y: 3)
                 } else {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(LinearGradient(
@@ -446,7 +451,7 @@ struct LargePlayerWidgetView: View {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
                         )
-                        .shadow(color: Color(hex: entry.snapshot.accentHex).opacity(0.5), radius: 10, x: 0, y: 3)
+                        .shadow(color: Color.black.opacity(0.35), radius: 6, x: 0, y: 3)
                 } else {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color(hex: entry.snapshot.accentHex).opacity(0.25))
@@ -554,8 +559,8 @@ struct LargePlayerWidgetView: View {
                     }
                     .frame(maxWidth: .infinity)
                 } else {
-                    VStack(spacing: 6) {
-                        ForEach(Array(entry.snapshot.queue.prefix(3).enumerated()), id: \.element.id) { index, item in
+                    VStack(spacing: 5) {
+                        ForEach(Array(entry.snapshot.queue.prefix(4).enumerated()), id: \.element.id) { index, item in
                             HStack(spacing: 10) {
                                 Text("\(index + 1)")
                                     .font(.system(size: 12, weight: .bold))

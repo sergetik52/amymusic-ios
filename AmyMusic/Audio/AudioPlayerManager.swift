@@ -412,7 +412,14 @@ public final class AudioPlayerManager {
         }
 
         // Sync Home Screen & Lock Screen Widgets
-        let queueItems = self.queue.dropFirst(self.currentIndex + 1).prefix(3).map {
+        // Sync Home Screen & Lock Screen Widgets
+        var upNextTracks: [Track] = []
+        if self.currentIndex + 1 < self.queue.count {
+            upNextTracks = Array(self.queue[(self.currentIndex + 1)...].prefix(5))
+        } else if self.repeatMode == .playlist && !self.queue.isEmpty {
+            upNextTracks = Array(self.queue.prefix(5))
+        }
+        let queueItems = upNextTracks.map {
             WidgetQueueItem(id: $0.id, title: $0.title, artist: $0.artist, duration: $0.duration)
         }
         let widgetSnapshot = AmyMusicWidgetSnapshot(
@@ -424,7 +431,7 @@ public final class AudioPlayerManager {
             duration: max(duration, track.duration),
             accentHex: track.palette.line,
             isLiked: liked,
-            queue: Array(queueItems),
+            queue: queueItems,
             updatedAt: Date()
         )
         AmyMusicSharedStore.shared.saveSnapshot(widgetSnapshot)
