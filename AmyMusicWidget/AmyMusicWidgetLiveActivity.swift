@@ -312,6 +312,64 @@ struct SmallPlayerWidgetView: View {
     }
 }
 
+// MARK: - Live Ticking Progress Bar & Timecodes
+
+struct WidgetProgressBarView: View {
+    let snapshot: AmyMusicWidgetSnapshot
+
+    var body: some View {
+        let duration = max(1, snapshot.duration)
+        let current = min(max(0, snapshot.currentTime), duration - 0.1)
+        let startDate = snapshot.updatedAt.addingTimeInterval(-current)
+        let endDate = startDate.addingTimeInterval(duration)
+        let isLiveTicking = snapshot.isPlaying && endDate > Date()
+
+        VStack(spacing: 3) {
+            if isLiveTicking {
+                ProgressView(
+                    timerInterval: startDate...endDate,
+                    countsDown: false
+                )
+                .tint(Color(hex: snapshot.accentHex))
+                .scaleEffect(y: 0.85, anchor: .center)
+            } else {
+                ProgressView(
+                    value: min(current, duration),
+                    total: duration
+                )
+                .tint(Color(hex: snapshot.accentHex))
+                .scaleEffect(y: 0.85, anchor: .center)
+            }
+
+            HStack {
+                if isLiveTicking {
+                    Text(timerInterval: startDate...endDate, pauseTime: nil, countsDown: false, showsHours: duration >= 3600)
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.6))
+                } else {
+                    Text(formatTime(current))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+
+                Spacer()
+
+                Text(formatTime(duration))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+        }
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        let s = max(0, Int(seconds))
+        if s >= 3600 {
+            return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+        }
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
 // MARK: - Medium (4x2) Widget View
 
 struct MediumPlayerWidgetView: View {
@@ -362,25 +420,8 @@ struct MediumPlayerWidgetView: View {
                         .lineLimit(1)
                 }
 
-                // Progress bar & timecodes
-                VStack(spacing: 3) {
-                    ProgressView(
-                        value: min(entry.snapshot.currentTime, max(1, entry.snapshot.duration)),
-                        total: max(1, entry.snapshot.duration)
-                    )
-                    .tint(Color(hex: entry.snapshot.accentHex))
-                    .scaleEffect(y: 0.85, anchor: .center)
-
-                    HStack {
-                        Text(formatTime(entry.snapshot.currentTime))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                        Spacer()
-                        Text(formatTime(entry.snapshot.duration))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                }
+                // Live ticking progress bar & timecodes
+                WidgetProgressBarView(snapshot: entry.snapshot)
 
                 // Interactive Buttons: Previous, Play/Pause, Next, Like
                 HStack(spacing: 16) {
@@ -474,22 +515,8 @@ struct LargePlayerWidgetView: View {
                         .foregroundStyle(.white.opacity(0.68))
                         .lineLimit(1)
 
-                    ProgressView(
-                        value: min(entry.snapshot.currentTime, max(1, entry.snapshot.duration)),
-                        total: max(1, entry.snapshot.duration)
-                    )
-                    .tint(Color(hex: entry.snapshot.accentHex))
-                    .padding(.top, 4)
-
-                    HStack {
-                        Text(formatTime(entry.snapshot.currentTime))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                        Spacer()
-                        Text(formatTime(entry.snapshot.duration))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
+                    WidgetProgressBarView(snapshot: entry.snapshot)
+                        .padding(.top, 2)
                 }
             }
 
@@ -610,7 +637,7 @@ struct InlineLockScreenWidgetView: View {
     let entry: AmyMusicWidgetEntry
 
     var body: some View {
-        if entry.snapshot.isPlaying || (!entry.snapshot.title.isEmpty && entry.snapshot.title != "AmyMusic") {
+        if entry.snapshot.isPlaying && !entry.snapshot.title.isEmpty && entry.snapshot.title != "AmyMusic" {
             Text("🎵 \(entry.snapshot.title) • \(entry.snapshot.artist)")
         } else {
             Text("🎵 AmyMusic")
