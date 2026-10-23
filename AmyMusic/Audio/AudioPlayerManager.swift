@@ -358,13 +358,13 @@ public final class AudioPlayerManager {
         // Check if artwork is already in cache for instant display
         var artworkApplied = false
         if let coverUrlStr = track.coverUrl, let url = URL(string: coverUrlStr) {
-            let request = URLRequest(url: url)
-            if let cached = URLCache.shared.cachedResponse(for: request),
-               let cachedImg = UIImage(data: cached.data) {
+            if let cachedImg = ImageCacheManager.shared.get(for: url) {
                 let artwork = Self.createMediaArtwork(from: cachedImg)
                 info[MPMediaItemPropertyArtwork] = artwork
                 artworkApplied = true
-                AmyMusicSharedStore.shared.saveCoverImageData(cached.data)
+                if let compressed = cachedImg.jpegData(compressionQuality: 0.75) {
+                    AmyMusicSharedStore.shared.saveCoverImageData(compressed)
+                }
             }
         }
 
@@ -381,11 +381,8 @@ public final class AudioPlayerManager {
 
         if !artworkApplied, let coverUrlStr = track.coverUrl, let url = URL(string: coverUrlStr) {
             let targetId = track.id
-            let request = URLRequest(url: url)
             Task {
-                if let (data, response) = try? await URLSession.shared.data(for: request),
-                   let image = UIImage(data: data) {
-                    URLCache.shared.storeCachedResponse(CachedURLResponse(response: response, data: data), for: request)
+                if let image = await ImageCacheManager.shared.load(url: url) {
                     guard self.currentTrack?.id == targetId else { return }
                     let artwork = Self.createMediaArtwork(from: image)
                     var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]

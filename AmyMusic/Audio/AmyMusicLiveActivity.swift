@@ -228,30 +228,58 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
         }
     }
 
+    private let accessGroup = "M5LW4HM9AJ.com.amymusic.ios"
+
     private func saveKeychain(data: Data, account: String) {
-        let query: [String: Any] = [
+        // 1. Save to shared keychain access group
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup
+        ]
+        SecItemDelete(query as CFDictionary)
+        query[kSecValueData as String] = data
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        let status = SecItemAdd(query as CFDictionary, nil)
+
+        // 2. Also save to default group as fallback
+        var fallbackQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-        SecItemDelete(query as CFDictionary)
-
-        var newQuery = query
-        newQuery[kSecValueData as String] = data
-        newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(newQuery as CFDictionary, nil)
+        SecItemDelete(fallbackQuery as CFDictionary)
+        fallbackQuery[kSecValueData as String] = data
+        fallbackQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        SecItemAdd(fallbackQuery as CFDictionary, nil)
     }
 
     private func loadKeychain(account: String) -> Data? {
-        let query: [String: Any] = [
+        // 1. Try with shared accessGroup
+        let queryWithGroup: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        var status = SecItemCopyMatching(queryWithGroup as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data {
+            return data
+        }
+
+        // 2. Fallback without accessGroup
+        let queryNoGroup: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        status = SecItemCopyMatching(queryNoGroup as CFDictionary, &item)
         if status == errSecSuccess, let data = item as? Data {
             return data
         }

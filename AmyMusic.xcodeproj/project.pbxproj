@@ -408,6 +408,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				CODE_SIGN_ENTITLEMENTS = AmyMusic/AmyMusic.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -484,6 +485,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				CODE_SIGN_ENTITLEMENTS = AmyMusicWidget/AmyMusicWidget.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios.widget;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -504,6 +506,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				CODE_SIGN_ENTITLEMENTS = AmyMusic/AmyMusic.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -522,6 +525,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				CODE_SIGN_ENTITLEMENTS = AmyMusicWidget/AmyMusicWidget.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios.widget;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
