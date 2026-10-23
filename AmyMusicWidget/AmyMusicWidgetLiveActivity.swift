@@ -96,35 +96,6 @@ public struct PreviousTrackIntent: AppIntent {
     }
 }
 
-@available(iOS 17.0, *)
-public struct SetWidgetTabIntent: AppIntent {
-    public static let title: LocalizedStringResource = "Переключить вкладку виджета"
-    public static let description = IntentDescription("Переключение между очередью и текстом песни")
-    public static let openAppWhenRun: Bool = false
-
-    @Parameter(title: "Вкладка")
-    public var tab: String
-
-    public init() {
-        self.tab = "lyrics"
-    }
-
-    public init(tab: String) {
-        self.tab = tab
-    }
-
-    public func perform() async throws -> some IntentResult {
-        AmyMusicSharedStore.shared.setWidgetTab(tab)
-        if var snap = AmyMusicSharedStore.shared.loadSnapshot() {
-            snap.isLyricsTab = (tab == "lyrics")
-            snap.updatedAt = Date()
-            AmyMusicSharedStore.shared.saveSnapshot(snap)
-        }
-        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
-        return .result()
-    }
-}
-
 // MARK: - Widget Bundle Entry Point
 
 @main
@@ -141,20 +112,21 @@ struct AmyMusicWidgetEntry: TimelineEntry {
     let date: Date
     let snapshot: AmyMusicWidgetSnapshot
     let coverImage: UIImage?
+    var inlinePhase: Int = 0 // 0: Title • Artist, 1: Title, 2: Artist
 }
 
 struct AmyMusicTimelineProvider: TimelineProvider {
     typealias Entry = AmyMusicWidgetEntry
 
     func placeholder(in context: Context) -> AmyMusicWidgetEntry {
-        AmyMusicWidgetEntry(date: Date(), snapshot: .placeholder, coverImage: nil)
+        AmyMusicWidgetEntry(date: Date(), snapshot: .placeholder, coverImage: nil, inlinePhase: 0)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (AmyMusicWidgetEntry) -> Void) {
         let snapshot = AmyMusicSharedStore.shared.loadSnapshot() ?? .placeholder
         let coverData = AmyMusicSharedStore.shared.loadCoverImageData()
         let image = coverData.flatMap { UIImage(data: $0) }
-        completion(AmyMusicWidgetEntry(date: Date(), snapshot: snapshot, coverImage: image))
+        completion(AmyMusicWidgetEntry(date: Date(), snapshot: snapshot, coverImage: image, inlinePhase: 0))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AmyMusicWidgetEntry>) -> Void) {
@@ -163,25 +135,34 @@ struct AmyMusicTimelineProvider: TimelineProvider {
         let image = coverData.flatMap { UIImage(data: $0) }
         let now = Date()
 
-        var entries: [AmyMusicWidgetEntry] = [
-            AmyMusicWidgetEntry(date: now, snapshot: snapshot, coverImage: image)
-        ]
+        var entries: [AmyMusicWidgetEntry] = []
 
-        // Schedule entries for synchronized lyrics if playing in lyrics mode
-        if snapshot.isPlaying && snapshot.isLyricsTab && !snapshot.lyrics.isEmpty {
-            let duration = max(1, snapshot.duration)
-            let current = snapshot.currentTime
-            let startDate = snapshot.updatedAt.addingTimeInterval(-current)
-
-            for line in snapshot.lyrics where line.time > current && line.time < duration {
-                let entryDate = startDate.addingTimeInterval(line.time)
-                if entryDate > now && entryDate < now.addingTimeInterval(600) {
-                    entries.append(AmyMusicWidgetEntry(date: entryDate, snapshot: snapshot, coverImage: image))
-                }
+        if snapshot.isPlaying && !snapshot.title.isEmpty && snapshot.title != "AmyMusic" {
+            // Cycle Lock Screen inline text every 6 seconds so user sees full Title, Artist, and Combined
+            for step in 0..<30 {
+                let entryDate = now.addingTimeInterval(Double(step * 6))
+                let phase = step % 3
+                entries.append(
+                    AmyMusicWidgetEntry(
+                        date: entryDate,
+                        snapshot: snapshot,
+                        coverImage: image,
+                        inlinePhase: phase
+                    )
+                )
             }
+        } else {
+            entries.append(
+                AmyMusicWidgetEntry(
+                    date: now,
+                    snapshot: snapshot,
+                    coverImage: image,
+                    inlinePhase: 0
+                )
+            )
         }
 
-        let refreshDate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date()
+        let refreshDate = Calendar.current.date(byAdding: .minute, value: 3, to: now) ?? now
         let timeline = Timeline(entries: entries, policy: .after(refreshDate))
         completion(timeline)
     }
@@ -374,15 +355,21 @@ struct WidgetProgressBarView: View {
             if isLiveTicking {
                 ProgressView(
                     timerInterval: startDate...endDate,
-                    countsDown: false
+                    countsDown: false,
+                    label: { EmptyView() },
+                    currentValueLabel: { EmptyView() }
                 )
+                .labelsHidden()
                 .tint(Color(hex: snapshot.accentHex))
                 .scaleEffect(y: 0.85, anchor: .center)
             } else {
                 ProgressView(
                     value: min(current, duration),
-                    total: duration
+                    total: duration,
+                    label: { EmptyView() },
+                    currentValueLabel: { EmptyView() }
                 )
+                .labelsHidden()
                 .tint(Color(hex: snapshot.accentHex))
                 .scaleEffect(y: 0.85, anchor: .center)
             }
@@ -609,203 +596,66 @@ struct LargePlayerWidgetView: View {
                 .background(Color.white.opacity(0.12))
                 .padding(.vertical, 2)
 
-            // Lower half: Switchable Hub (Queue or Lyrics)
-            VStack(alignment: .leading, spacing: 6) {
+            // Lower half: Up Next Queue
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    Button(intent: SetWidgetTabIntent(tab: "queue")) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "text.line.first.and.arrowtriangle.forward")
-                                .font(.system(size: 9, weight: .bold))
-                            Text("ОЧЕРЕДЬ")
-                                .font(.system(size: 9, weight: .bold))
-                                .tracking(0.4)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3.5)
-                        .background(
-                            Capsule()
-                                .fill(!entry.snapshot.isLyricsTab ? Color(hex: entry.snapshot.accentHex).opacity(0.35) : Color.white.opacity(0.06))
-                        )
-                        .foregroundStyle(!entry.snapshot.isLyricsTab ? .white : .white.opacity(0.45))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(intent: SetWidgetTabIntent(tab: "lyrics")) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "quote.bubble.fill")
-                                .font(.system(size: 9, weight: .bold))
-                            Text("ТЕКСТ ПЕСНИ")
-                                .font(.system(size: 9, weight: .bold))
-                                .tracking(0.4)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3.5)
-                        .background(
-                            Capsule()
-                                .fill(entry.snapshot.isLyricsTab ? Color(hex: entry.snapshot.accentHex).opacity(0.35) : Color.white.opacity(0.06))
-                        )
-                        .foregroundStyle(entry.snapshot.isLyricsTab ? .white : .white.opacity(0.45))
-                    }
-                    .buttonStyle(.plain)
-
+                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(hex: entry.snapshot.accentHex))
+                    Text("ДАЛЕЕ В ОЧЕРЕДИ")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .tracking(0.5)
                     Spacer()
                 }
 
-                if entry.snapshot.isLyricsTab {
-                    WidgetLyricsContentView(entry: entry)
+                if entry.snapshot.queue.isEmpty {
+                    VStack(spacing: 4) {
+                        Spacer()
+                        Text("Очередь воспроизведения пуста")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.4))
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    WidgetQueueContentView(entry: entry)
+                    VStack(spacing: 5) {
+                        ForEach(Array(entry.snapshot.queue.prefix(4).enumerated()), id: \.element.id) { index, item in
+                            HStack(spacing: 10) {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(Color(hex: entry.snapshot.accentHex).opacity(0.9))
+                                    .frame(width: 14)
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(item.title)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(1)
+                                    Text(item.artist)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                        .lineLimit(1)
+                                }
+
+                                Spacer()
+
+                                Text(formatTime(item.duration))
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.45))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.white.opacity(0.04))
+                            )
+                        }
+                    }
                 }
             }
         }
         .padding(14)
-    }
-}
-
-// MARK: - Widget Lyrics Content View (Real Synced / Plain Lyrics)
-
-struct WidgetLyricsContentView: View {
-    let entry: AmyMusicWidgetEntry
-
-    var body: some View {
-        if entry.snapshot.lyrics.isEmpty {
-            VStack(spacing: 6) {
-                Spacer()
-                Image(systemName: "music.mic")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.3))
-                Text("Текст песни пока не загружен")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            let activeIdx = findActiveLyricIndex()
-            let displayLines = getDisplaySlice(around: activeIdx)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(displayLines, id: \.id) { item in
-                    let isActive = (item.index == activeIdx)
-                    HStack(spacing: 6) {
-                        if isActive {
-                            Circle()
-                                .fill(Color(hex: entry.snapshot.accentHex))
-                                .frame(width: 5, height: 5)
-                        } else {
-                            Circle()
-                                .fill(Color.clear)
-                                .frame(width: 5, height: 5)
-                        }
-
-                        Text(item.line.text)
-                            .font(.system(
-                                size: isActive ? 12.5 : 11,
-                                weight: isActive ? .bold : .medium
-                            ))
-                            .foregroundStyle(
-                                isActive
-                                    ? .white
-                                    : .white.opacity(item.index < activeIdx ? 0.35 : 0.6)
-                            )
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 2)
-        }
-    }
-
-    private struct IndexedLyricLine: Identifiable {
-        let id: String
-        let index: Int
-        let line: WidgetLyricLine
-    }
-
-    private func findActiveLyricIndex() -> Int {
-        guard !entry.snapshot.lyrics.isEmpty else { return 0 }
-        let current = entry.snapshot.currentTime + (entry.snapshot.isPlaying ? max(0, Date().timeIntervalSince(entry.snapshot.updatedAt)) : 0)
-        let hasSynced = entry.snapshot.lyrics.contains { $0.time > 0 }
-        if !hasSynced {
-            return 0
-        }
-
-        var activeIndex = 0
-        for (i, line) in entry.snapshot.lyrics.enumerated() {
-            if line.time <= current + 0.3 {
-                activeIndex = i
-            } else {
-                break
-            }
-        }
-        return activeIndex
-    }
-
-    private func getDisplaySlice(around activeIdx: Int) -> [IndexedLyricLine] {
-        let total = entry.snapshot.lyrics.count
-        guard total > 0 else { return [] }
-
-        let start = max(0, min(activeIdx > 0 ? activeIdx - 1 : 0, total - 4))
-        let end = min(total, start + 4)
-
-        return (start..<end).map { i in
-            IndexedLyricLine(id: "\(i)_\(entry.snapshot.lyrics[i].id)", index: i, line: entry.snapshot.lyrics[i])
-        }
-    }
-}
-
-// MARK: - Widget Queue Content View
-
-struct WidgetQueueContentView: View {
-    let entry: AmyMusicWidgetEntry
-
-    var body: some View {
-        if entry.snapshot.queue.isEmpty {
-            VStack(spacing: 4) {
-                Spacer()
-                Text("Очередь воспроизведения пуста")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            VStack(spacing: 5) {
-                ForEach(Array(entry.snapshot.queue.prefix(4).enumerated()), id: \.element.id) { index, item in
-                    HStack(spacing: 10) {
-                        Text("\(index + 1)")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color(hex: entry.snapshot.accentHex).opacity(0.9))
-                            .frame(width: 14)
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(item.title)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                            Text(item.artist)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.55))
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        Text(formatTime(item.duration))
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.45))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
-                    )
-                }
-            }
-        }
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -821,7 +671,14 @@ struct InlineLockScreenWidgetView: View {
 
     var body: some View {
         if entry.snapshot.isPlaying && !entry.snapshot.title.isEmpty && entry.snapshot.title != "AmyMusic" {
-            Text("🎵 \(entry.snapshot.title) • \(entry.snapshot.artist)")
+            switch entry.inlinePhase {
+            case 1:
+                Text("🎵 \(entry.snapshot.title)")
+            case 2:
+                Text("👤 \(entry.snapshot.artist)")
+            default:
+                Text("🎵 \(entry.snapshot.title) • \(entry.snapshot.artist)")
+            }
         } else {
             Text("🎵 AmyMusic")
         }
