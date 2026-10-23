@@ -98,3 +98,164 @@ public final class AmyMusicLiveActivityController {
         #endif
     }
 }
+
+// MARK: - Shared Widget Models & Persistence
+
+public struct WidgetQueueItem: Codable, Hashable, Identifiable, Sendable {
+    public var id: String
+    public var title: String
+    public var artist: String
+    public var duration: TimeInterval
+
+    public init(id: String, title: String, artist: String, duration: TimeInterval) {
+        self.id = id
+        self.title = title
+        self.artist = artist
+        self.duration = duration
+    }
+}
+
+public struct AmyMusicWidgetSnapshot: Codable, Hashable, Sendable {
+    public var title: String
+    public var artist: String
+    public var coverUrl: String?
+    public var isPlaying: Bool
+    public var currentTime: TimeInterval
+    public var duration: TimeInterval
+    public var accentHex: String
+    public var isLiked: Bool
+    public var queue: [WidgetQueueItem]
+    public var updatedAt: Date
+
+    public init(
+        title: String,
+        artist: String,
+        coverUrl: String? = nil,
+        isPlaying: Bool,
+        currentTime: TimeInterval,
+        duration: TimeInterval,
+        accentHex: String = "#9945FF",
+        isLiked: Bool = false,
+        queue: [WidgetQueueItem] = [],
+        updatedAt: Date = Date()
+    ) {
+        self.title = title
+        self.artist = artist
+        self.coverUrl = coverUrl
+        self.isPlaying = isPlaying
+        self.currentTime = currentTime
+        self.duration = duration
+        self.accentHex = accentHex
+        self.isLiked = isLiked
+        self.queue = queue
+        self.updatedAt = updatedAt
+    }
+
+    public static let placeholder = AmyMusicWidgetSnapshot(
+        title: "AmyMusic",
+        artist: "Включить музыку",
+        coverUrl: nil,
+        isPlaying: false,
+        currentTime: 0,
+        duration: 0,
+        accentHex: "#9945FF",
+        isLiked: false,
+        queue: [],
+        updatedAt: Date()
+    )
+}
+
+public final class AmyMusicSharedStore: @unchecked Sendable {
+    public static let shared = AmyMusicSharedStore()
+    private let service = "com.amymusic.shared"
+    private let stateAccount = "widgetState"
+    private let coverAccount = "widgetCover"
+    private let appGroup = "group.com.amymusic.ios"
+
+    private init() {}
+
+    public func saveSnapshot(_ snapshot: AmyMusicWidgetSnapshot) {
+        if let userDefaults = UserDefaults(suiteName: appGroup),
+           let data = try? JSONEncoder().encode(snapshot) {
+            userDefaults.set(data, forKey: stateAccount)
+        }
+        if let data = try? JSONEncoder().encode(snapshot) {
+            saveKeychain(data: data, account: stateAccount)
+        }
+    }
+
+    public func loadSnapshot() -> AmyMusicWidgetSnapshot? {
+        if let userDefaults = UserDefaults(suiteName: appGroup),
+           let data = userDefaults.data(forKey: stateAccount),
+           let snapshot = try? JSONDecoder().decode(AmyMusicWidgetSnapshot.self, from: data) {
+            return snapshot
+        }
+        if let data = loadKeychain(account: stateAccount),
+           let snapshot = try? JSONDecoder().decode(AmyMusicWidgetSnapshot.self, from: data) {
+            return snapshot
+        }
+        return nil
+    }
+
+    public func saveCoverImageData(_ data: Data) {
+        if let userDefaults = UserDefaults(suiteName: appGroup) {
+            userDefaults.set(data, forKey: coverAccount)
+        }
+        saveKeychain(data: data, account: coverAccount)
+    }
+
+    public func loadCoverImageData() -> Data? {
+        if let userDefaults = UserDefaults(suiteName: appGroup),
+           let data = userDefaults.data(forKey: coverAccount) {
+            return data
+        }
+        return loadKeychain(account: coverAccount)
+    }
+
+    public func updateLikeOptimistically() {
+        if var snap = loadSnapshot() {
+            snap.isLiked.toggle()
+            snap.updatedAt = Date()
+            saveSnapshot(snap)
+        }
+    }
+
+    public func updatePlayOptimistically() {
+        if var snap = loadSnapshot() {
+            snap.isPlaying.toggle()
+            snap.updatedAt = Date()
+            saveSnapshot(snap)
+        }
+    }
+
+    private func saveKeychain(data: Data, account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+
+        var newQuery = query
+        newQuery[kSecValueData as String] = data
+        newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        SecItemAdd(newQuery as CFDictionary, nil)
+    }
+
+    private func loadKeychain(account: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data {
+            return data
+        }
+        return nil
+    }
+}
+

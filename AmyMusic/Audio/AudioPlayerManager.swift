@@ -5,6 +5,9 @@ import Observation
 import SwiftUI
 import UIKit
 import AuthenticationServices
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 // MARK: - Native iOS 26 Dual-Engine Audio Player, 10-Band EQ & Queue Manager
 // Port of src/audio/AudioPlayerContext.jsx
@@ -219,23 +222,43 @@ public final class AudioPlayerManager {
             }
         }
 
-        // Inter-process Darwin notification listener from Dynamic Island & Live Activity Widgets
+        // Inter-process Darwin notification listener from Dynamic Island & Live Activity & Home/Lock Screen Widgets
         let notifyCenter = CFNotificationCenterGetDarwinNotifyCenter()
         let observer = Unmanaged.passUnretained(self).toOpaque()
-        CFNotificationCenterAddObserver(
-            notifyCenter,
-            observer,
-            { _, observer, _, _, _ in
-                guard let observer = observer else { return }
-                let manager = Unmanaged<AudioPlayerManager>.fromOpaque(observer).takeUnretainedValue()
-                Task { @MainActor in
-                    manager.toggleLikeCurrent()
-                }
-            },
-            "com.amymusic.toggleLike" as CFString,
-            nil,
-            .deliverImmediately
-        )
+        let darwinEvents: [String] = [
+            "com.amymusic.toggleLike",
+            "com.amymusic.togglePlayPause",
+            "com.amymusic.nextTrack",
+            "com.amymusic.previousTrack"
+        ]
+        for name in darwinEvents {
+            CFNotificationCenterAddObserver(
+                notifyCenter,
+                observer,
+                { _, observer, name, _, _ in
+                    guard let observer = observer, let name = name else { return }
+                    let manager = Unmanaged<AudioPlayerManager>.fromOpaque(observer).takeUnretainedValue()
+                    let strName = name.rawValue as String
+                    Task { @MainActor in
+                        switch strName {
+                        case "com.amymusic.toggleLike":
+                            manager.toggleLikeCurrent()
+                        case "com.amymusic.togglePlayPause":
+                            manager.togglePlay()
+                        case "com.amymusic.nextTrack":
+                            manager.next()
+                        case "com.amymusic.previousTrack":
+                            manager.previous()
+                        default:
+                            break
+                        }
+                    }
+                },
+                name as CFString,
+                nil,
+                .deliverImmediately
+            )
+        }
     }
 
     private func setupRemoteTransportControls() {
@@ -341,6 +364,7 @@ public final class AudioPlayerManager {
                 let artwork = Self.createMediaArtwork(from: cachedImg)
                 info[MPMediaItemPropertyArtwork] = artwork
                 artworkApplied = true
+                AmyMusicSharedStore.shared.saveCoverImageData(cached.data)
             }
         }
 
@@ -367,6 +391,12 @@ public final class AudioPlayerManager {
                     var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                     current[MPMediaItemPropertyArtwork] = artwork
                     MPNowPlayingInfoCenter.default().nowPlayingInfo = current
+                    if let compressed = image.jpegData(compressionQuality: 0.75) {
+                        AmyMusicSharedStore.shared.saveCoverImageData(compressed)
+                        #if canImport(WidgetKit)
+                        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+                        #endif
+                    }
                 }
             }
         }
@@ -383,6 +413,27 @@ public final class AudioPlayerManager {
         } else {
             AmyMusicLiveActivityController.shared.endAll()
         }
+
+        // Sync Home Screen & Lock Screen Widgets
+        let queueItems = self.queue.dropFirst(self.currentIndex + 1).prefix(3).map {
+            WidgetQueueItem(id: $0.id, title: $0.title, artist: $0.artist, duration: $0.duration)
+        }
+        let widgetSnapshot = AmyMusicWidgetSnapshot(
+            title: track.title,
+            artist: track.artist,
+            coverUrl: track.coverUrl,
+            isPlaying: isPlaying,
+            currentTime: currentTime,
+            duration: max(duration, track.duration),
+            accentHex: track.palette.line,
+            isLiked: liked,
+            queue: Array(queueItems),
+            updatedAt: Date()
+        )
+        AmyMusicSharedStore.shared.saveSnapshot(widgetSnapshot)
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+        #endif
     }
 
     // MARK: - Playback Controls & Crossfade
