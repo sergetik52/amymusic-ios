@@ -1,5 +1,8 @@
 import SwiftUI
 import PhotosUI
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 // MARK: - Settings, Profile, Audio & Integrations + Real Photo Avatar
 // Port of src/components/SettingsView.jsx, ProfileSettingsModal & src/components/AvatarCropperModal.jsx
@@ -306,6 +309,43 @@ public struct SettingsAndProfileView: View {
                     .onChange(of: player.settings.volumeNormalization) { _, _ in
                         player.persistState()
                     }
+            }
+            .padding(18)
+            .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            // MARK: - AmyMusic Widget Settings
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                    Text("Виджет AmyMusic (4×4)")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundStyle(.white)
+                }
+
+                Text("Выберите, что отображать в нижней части большого виджета на рабочем столе:")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.6))
+
+                Picker("Режим содержимого", selection: Binding(
+                    get: { AmyMusicSharedStore.shared.getWidgetTab() },
+                    set: { newTab in
+                        AmyMusicSharedStore.shared.setWidgetTab(newTab)
+                        if var snap = AmyMusicSharedStore.shared.loadSnapshot() {
+                            snap.isLyricsTab = (newTab == "lyrics")
+                            snap.updatedAt = Date()
+                            AmyMusicSharedStore.shared.saveSnapshot(snap)
+                        }
+                        #if canImport(WidgetKit)
+                        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+                        #endif
+                    }
+                )) {
+                    Text("Очередь треков").tag("queue")
+                    Text("Текст песни (Lyrics)").tag("lyrics")
+                }
+                .pickerStyle(.segmented)
             }
             .padding(18)
             .amyLiquidGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))

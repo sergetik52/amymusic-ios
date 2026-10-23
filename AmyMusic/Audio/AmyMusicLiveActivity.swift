@@ -115,6 +115,18 @@ public struct WidgetQueueItem: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+public struct WidgetLyricLine: Codable, Hashable, Identifiable, Sendable {
+    public var id: String
+    public var time: TimeInterval
+    public var text: String
+
+    public init(id: String = UUID().uuidString, time: TimeInterval, text: String) {
+        self.id = id
+        self.time = time
+        self.text = text
+    }
+}
+
 public struct AmyMusicWidgetSnapshot: Codable, Hashable, Sendable {
     public var title: String
     public var artist: String
@@ -125,6 +137,8 @@ public struct AmyMusicWidgetSnapshot: Codable, Hashable, Sendable {
     public var accentHex: String
     public var isLiked: Bool
     public var queue: [WidgetQueueItem]
+    public var lyrics: [WidgetLyricLine]
+    public var isLyricsTab: Bool
     public var updatedAt: Date
 
     public init(
@@ -137,6 +151,8 @@ public struct AmyMusicWidgetSnapshot: Codable, Hashable, Sendable {
         accentHex: String = "#9945FF",
         isLiked: Bool = false,
         queue: [WidgetQueueItem] = [],
+        lyrics: [WidgetLyricLine] = [],
+        isLyricsTab: Bool = false,
         updatedAt: Date = Date()
     ) {
         self.title = title
@@ -148,6 +164,8 @@ public struct AmyMusicWidgetSnapshot: Codable, Hashable, Sendable {
         self.accentHex = accentHex
         self.isLiked = isLiked
         self.queue = queue
+        self.lyrics = lyrics
+        self.isLyricsTab = isLyricsTab
         self.updatedAt = updatedAt
     }
 
@@ -161,6 +179,8 @@ public struct AmyMusicWidgetSnapshot: Codable, Hashable, Sendable {
         accentHex: "#9945FF",
         isLiked: false,
         queue: [],
+        lyrics: [],
+        isLyricsTab: false,
         updatedAt: Date()
     )
 }
@@ -170,9 +190,24 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
     private let service = "com.amymusic.shared"
     private let stateAccount = "widgetState"
     private let coverAccount = "widgetCover"
+    private let tabAccount = "widgetTab"
     private let accessGroup = "M5LW4HM9AJ.com.amymusic.ios"
 
     private init() {}
+
+    public func getWidgetTab() -> String {
+        if let data = loadKeychain(account: tabAccount),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        return "queue"
+    }
+
+    public func setWidgetTab(_ tab: String) {
+        if let data = tab.data(using: .utf8) {
+            saveKeychain(data: data, account: tabAccount)
+        }
+    }
 
     public func saveSnapshot(_ snapshot: AmyMusicWidgetSnapshot) {
         if let data = try? JSONEncoder().encode(snapshot) {

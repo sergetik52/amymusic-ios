@@ -422,6 +422,24 @@ public final class AudioPlayerManager {
         let queueItems = upNextTracks.map {
             WidgetQueueItem(id: $0.id, title: $0.title, artist: $0.artist, duration: $0.duration)
         }
+
+        // Extract real lyrics for widget display
+        var widgetLyrics: [WidgetLyricLine] = []
+        if !currentLyrics.lines.isEmpty {
+            widgetLyrics = currentLyrics.lines.map {
+                WidgetLyricLine(id: $0.id, time: $0.time, text: $0.text)
+            }
+        } else if !currentLyrics.plainText.isEmpty {
+            let rawLines = currentLyrics.plainText.components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            widgetLyrics = rawLines.map {
+                WidgetLyricLine(id: UUID().uuidString, time: 0, text: $0)
+            }
+        }
+
+        let isLyrics = (AmyMusicSharedStore.shared.getWidgetTab() == "lyrics")
+
         let widgetSnapshot = AmyMusicWidgetSnapshot(
             title: track.title,
             artist: track.artist,
@@ -432,6 +450,8 @@ public final class AudioPlayerManager {
             accentHex: track.palette.line,
             isLiked: liked,
             queue: queueItems,
+            lyrics: widgetLyrics,
+            isLyricsTab: isLyrics,
             updatedAt: Date()
         )
         AmyMusicSharedStore.shared.saveSnapshot(widgetSnapshot)
@@ -1110,6 +1130,7 @@ public final class AudioPlayerManager {
         if currentTrack?.id == track.id {
             currentLyrics = payload
             isLyricsLoading = false
+            updateNowPlayingInfo()
         }
     }
 
