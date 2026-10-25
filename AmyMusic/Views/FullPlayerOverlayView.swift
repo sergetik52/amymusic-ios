@@ -511,6 +511,7 @@ public struct FullPlayerOverlayView: View {
 }
 
 // MARK: - Native Apple Media Scrubber (Safari Video & Control Center Style)
+// MARK: - Native Apple Media Scrubber (Safari Video & Control Center Style)
 public struct AppleMediaScrubberView: View {
     public let currentTime: TimeInterval
     public let duration: TimeInterval
@@ -519,62 +520,79 @@ public struct AppleMediaScrubberView: View {
     public let onCommit: (TimeInterval) -> Void
 
     @State private var showRemainingTime: Bool = true
+    @State private var localDragProgress: CGFloat? = nil
 
     public var body: some View {
-        let activeTime = isScrubbing ? scrubTime : currentTime
         let safeDuration = max(1.0, duration)
-        let progress = CGFloat(min(1.0, max(0.0, activeTime / safeDuration)))
+        // Instant 120Hz drag tracking: localDragProgress eliminates timer updates and prevents jitter
+        let progress: CGFloat = {
+            if let drag = localDragProgress {
+                return min(max(0.0, drag), 1.0)
+            } else if isScrubbing {
+                return min(max(0.0, CGFloat(scrubTime / safeDuration)), 1.0)
+            } else {
+                return min(max(0.0, CGFloat(currentTime / safeDuration)), 1.0)
+            }
+        }()
+
+        let activeTime = safeDuration * Double(progress)
 
         VStack(spacing: 8) {
-            // Interactive Scrubber Bar with smooth vertical spring expansion on drag
+            // Interactive Scrubber Bar
             GeometryReader { proxy in
                 let width = max(1, proxy.size.width)
+                let height = proxy.size.height
                 let currentTrackHeight: CGFloat = isScrubbing ? 9.0 : 4.5
                 let thumbDiameter: CGFloat = isScrubbing ? 16.0 : 7.0
+                let currentProgressX = min(max(0.0, width * progress), width)
 
                 ZStack(alignment: .leading) {
-                    // 1. Inactive Background Track (Apple Control Center translucent capsule)
+                    // 1. Inactive Background Track (Translucent pill)
                     Capsule()
                         .fill(Color.white.opacity(0.20))
                         .frame(height: currentTrackHeight)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: currentTrackHeight)
 
-                    // 2. Active Elapsed Track (Solid white capsule)
+                    // 2. Active Elapsed Track (Solid white pill - follows finger with 0ms delay)
                     Capsule()
                         .fill(Color.white)
-                        .frame(width: max(0, min(width, width * progress)), height: currentTrackHeight)
+                        .frame(width: currentProgressX, height: currentTrackHeight)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: currentTrackHeight)
 
-                    // 3. Apple Scrubber Thumb Knob
+                    // 3. Apple Scrubber Thumb Knob (Centered on progress point so diameter expansion never shifts its center)
                     Circle()
                         .fill(Color.white)
                         .frame(width: thumbDiameter, height: thumbDiameter)
                         .shadow(color: Color.black.opacity(isScrubbing ? 0.35 : 0.15), radius: isScrubbing ? 4 : 2, x: 0, y: 1)
-                        .scaleEffect(isScrubbing ? 1.0 : 0.85)
-                        .opacity(isScrubbing ? 1.0 : (progress > 0.01 ? 0.95 : 0.0))
-                        .offset(x: max(0, min(width - thumbDiameter, width * progress - thumbDiameter / 2)))
+                        .position(x: min(max(thumbDiameter / 2, currentProgressX), width - thumbDiameter / 2), y: height / 2)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: thumbDiameter)
                 }
                 .frame(maxHeight: .infinity, alignment: .center)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { val in
+                            let clamped = min(max(0.0, val.location.x / width), 1.0)
+                            localDragProgress = clamped
+                            scrubTime = safeDuration * Double(clamped)
+
                             if !isScrubbing {
                                 isScrubbing = true
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             }
-                            let pct = max(0.0, min(1.0, Double(val.location.x / width)))
-                            scrubTime = safeDuration * pct
                         }
                         .onEnded { val in
-                            let pct = max(0.0, min(1.0, Double(val.location.x / width)))
-                            let target = safeDuration * pct
-                            onCommit(target)
+                            let clamped = min(max(0.0, val.location.x / width), 1.0)
+                            let finalTarget = safeDuration * Double(clamped)
+
+                            localDragProgress = nil
+                            onCommit(finalTarget)
                             isScrubbing = false
                             UISelectionFeedbackGenerator().selectionChanged()
                         }
                 )
             }
             .frame(height: 32)
-            .animation(.spring(response: 0.28, dampingFraction: 0.76), value: isScrubbing)
 
             // Timestamps: Left Elapsed, Right Remaining (tap to toggle duration)
             HStack {
