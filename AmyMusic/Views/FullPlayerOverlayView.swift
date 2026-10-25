@@ -328,31 +328,16 @@ public struct FullPlayerOverlayView: View {
                             }
                         }
 
-                        // Native Liquid Glass Slider + Timestamps
-                        VStack(spacing: 2) {
-                            Slider(
-                                value: Binding(
-                                    get: { isScrubbing ? scrubTime : player.currentTime },
-                                    set: { scrubTime = $0 }
-                                ),
-                                in: 0...max(1.0, totalDuration),
-                                onEditingChanged: { editing in
-                                    isScrubbing = editing
-                                    if !editing {
-                                        player.seek(to: scrubTime)
-                                    }
-                                }
-                            )
-                            .tint(.white)
-
-                            HStack {
-                                Text(formatTime(isScrubbing ? scrubTime : player.currentTime))
-                                Spacer()
-                                Text(formatTime(totalDuration))
+                        // Native Apple Media Scrubber (Safari Video & Control Center Style)
+                        AppleMediaScrubberView(
+                            currentTime: player.currentTime,
+                            duration: totalDuration,
+                            isScrubbing: $isScrubbing,
+                            scrubTime: $scrubTime,
+                            onCommit: { target in
+                                player.seek(to: target)
                             }
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.55))
-                        }
+                        )
 
                         // Main Transport Row: Dislike, Prev, Play/Pause, Next, Like
                         HStack(alignment: .center) {
@@ -525,65 +510,103 @@ public struct FullPlayerOverlayView: View {
     }
 }
 
-// MARK: - Liquid Scrubber Bar
-public struct LiquidScrubberBar: View {
+// MARK: - Native Apple Media Scrubber (Safari Video & Control Center Style)
+public struct AppleMediaScrubberView: View {
     public let currentTime: TimeInterval
     public let duration: TimeInterval
-    public let tintColor: Color
     @Binding public var isScrubbing: Bool
     @Binding public var scrubTime: TimeInterval
     public let onCommit: (TimeInterval) -> Void
 
+    @State private var showRemainingTime: Bool = true
+
     public var body: some View {
         let activeTime = isScrubbing ? scrubTime : currentTime
-        let progress: CGFloat = duration > 0 ? CGFloat(min(1.0, max(0.0, activeTime / duration))) : 0
+        let safeDuration = max(1.0, duration)
+        let progress = CGFloat(min(1.0, max(0.0, activeTime / safeDuration)))
 
-        GeometryReader { proxy in
-            let width = max(1, proxy.size.width)
-            let trackHeight: CGFloat = isScrubbing ? 5.5 : 4.0
-            let thumbDiameter: CGFloat = isScrubbing ? 15.0 : 11.0
+        VStack(spacing: 8) {
+            // Interactive Scrubber Bar with smooth vertical spring expansion on drag
+            GeometryReader { proxy in
+                let width = max(1, proxy.size.width)
+                let currentTrackHeight: CGFloat = isScrubbing ? 9.0 : 4.5
+                let thumbDiameter: CGFloat = isScrubbing ? 16.0 : 7.0
 
-            ZStack(alignment: .leading) {
-                // Background track
-                Capsule()
-                    .fill(Color.white.opacity(0.18))
-                    .frame(height: trackHeight)
+                ZStack(alignment: .leading) {
+                    // 1. Inactive Background Track (Apple Control Center translucent capsule)
+                    Capsule()
+                        .fill(Color.white.opacity(0.20))
+                        .frame(height: currentTrackHeight)
 
-                // Filled track
-                Capsule()
-                    .fill(tintColor)
-                    .frame(width: max(0, width * progress), height: trackHeight)
-                    .shadow(color: tintColor.opacity(0.35), radius: 3, y: 0)
+                    // 2. Active Elapsed Track (Solid white capsule)
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: max(0, min(width, width * progress)), height: currentTrackHeight)
 
-                // Thumb handle
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: thumbDiameter, height: thumbDiameter)
-                    .shadow(color: Color.black.opacity(0.4), radius: 4, y: 1.5)
-                    .offset(x: max(0, min(width - thumbDiameter, width * progress - thumbDiameter / 2)))
-            }
-            .frame(maxHeight: .infinity, alignment: .center)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { val in
-                        if !isScrubbing {
-                            isScrubbing = true
+                    // 3. Apple Scrubber Thumb Knob
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: thumbDiameter, height: thumbDiameter)
+                        .shadow(color: Color.black.opacity(isScrubbing ? 0.35 : 0.15), radius: isScrubbing ? 4 : 2, x: 0, y: 1)
+                        .scaleEffect(isScrubbing ? 1.0 : 0.85)
+                        .opacity(isScrubbing ? 1.0 : (progress > 0.01 ? 0.95 : 0.0))
+                        .offset(x: max(0, min(width - thumbDiameter, width * progress - thumbDiameter / 2)))
+                }
+                .frame(maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { val in
+                            if !isScrubbing {
+                                isScrubbing = true
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            }
+                            let pct = max(0.0, min(1.0, Double(val.location.x / width)))
+                            scrubTime = safeDuration * pct
+                        }
+                        .onEnded { val in
+                            let pct = max(0.0, min(1.0, Double(val.location.x / width)))
+                            let target = safeDuration * pct
+                            onCommit(target)
+                            isScrubbing = false
                             UISelectionFeedbackGenerator().selectionChanged()
                         }
-                        let pct = max(0.0, min(1.0, Double(val.location.x / width)))
-                        scrubTime = duration * pct
+                )
+            }
+            .frame(height: 32)
+            .animation(.spring(response: 0.28, dampingFraction: 0.76), value: isScrubbing)
+
+            // Timestamps: Left Elapsed, Right Remaining (tap to toggle duration)
+            HStack {
+                Text(formatTime(activeTime))
+
+                Spacer()
+
+                Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    showRemainingTime.toggle()
+                } label: {
+                    if showRemainingTime {
+                        let remaining = max(0.0, safeDuration - activeTime)
+                        Text("-\(formatTime(remaining))")
+                    } else {
+                        Text(formatTime(safeDuration))
                     }
-                    .onEnded { val in
-                        let pct = max(0.0, min(1.0, Double(val.location.x / width)))
-                        let target = duration * pct
-                        onCommit(target)
-                        isScrubbing = false
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-            )
+                }
+                .buttonStyle(.plain)
+            }
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.60))
         }
-        .frame(height: 22)
+    }
+
+    private func formatTime(_ secs: TimeInterval) -> String {
+        guard secs.isFinite && secs >= 0 else { return "0:00" }
+        let s = Int(secs.rounded())
+        if s >= 3600 {
+            return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+        }
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 
