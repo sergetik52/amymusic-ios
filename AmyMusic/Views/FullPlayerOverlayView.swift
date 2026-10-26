@@ -801,12 +801,11 @@ public struct SyncedLyricsStageView: View {
         if syncMode == .words && isActive && !line.words.isEmpty {
             KaraokeActiveLineView(
                 line: line,
-                fontSize: baseFontSize * 1.06,
+                fontSize: baseFontSize,
                 accentColor: Color(hex: palette.bright),
                 hasAnnotation: hasAnnotation,
                 player: player
             )
-            .scaleEffect(1.08, anchor: .leading)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isActive)
         } else {
             let blurRadius: CGFloat = {
@@ -913,8 +912,8 @@ fileprivate func buildStyledLyricLine(
 
 // MARK: - WordFlowLayout for Native Apple Music Karaoke Flow
 private struct WordFlowLayout: Layout {
-    var horizontalSpacing: CGFloat = 8
-    var verticalSpacing: CGFloat = 8
+    var horizontalSpacing: CGFloat = 6.5
+    var verticalSpacing: CGFloat = 6.0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
@@ -956,7 +955,7 @@ private struct WordFlowLayout: Layout {
     }
 }
 
-// MARK: - Volumetric Apple Music Karaoke Word with Ultra-Smooth Left-to-Right Gradient Fill
+// MARK: - Native Apple Music Karaoke Word (No background box, silky glyph fill, permanent volume elevation)
 private struct KaraokeWordView: View {
     let word: LyricWord
     let currentTime: TimeInterval
@@ -968,84 +967,59 @@ private struct KaraokeWordView: View {
         let duration = max(0.08, word.endTime - word.startTime)
         let rawProgress = (currentTime - word.startTime) / duration
         let progress = min(max(0.0, rawProgress), 1.0)
+        let isReached = currentTime >= word.startTime
         let isActivelySinging = rawProgress >= 0.0 && rawProgress < 1.0
-        let isFullySung = rawProgress >= 1.0
 
         let font: Font = isParenthesized
-            ? .system(size: max(12, fontSize - 2.5), weight: .bold, design: .rounded).italic()
-            : .system(size: fontSize, weight: .heavy, design: .rounded)
+            ? .system(size: max(12, fontSize - 2.5), weight: isReached ? .heavy : .bold, design: .rounded).italic()
+            : .system(size: fontSize, weight: isReached ? .heavy : .bold, design: .rounded)
 
-        // Dynamic 3D volume & expansion: gently swells up to +8% at the peak of vocal delivery
-        let dynamicScale: CGFloat = {
-            if isActivelySinging {
-                let peakSwell = sin(progress * .pi) * 0.08 + 0.02
-                return 1.0 + peakSwell
-            } else if isFullySung {
-                return 1.02
+        // Gradient stops for smooth left-to-right fill applied directly to the font glyphs:
+        let stops: [Gradient.Stop] = {
+            if progress <= 0.0 {
+                let dim = isParenthesized ? 0.22 : 0.32
+                return [
+                    .init(color: .white.opacity(dim), location: 0.0),
+                    .init(color: .white.opacity(dim), location: 1.0)
+                ]
+            } else if progress >= 1.0 {
+                return [
+                    .init(color: .white, location: 0.0),
+                    .init(color: .white, location: 1.0)
+                ]
             } else {
-                return 1.0
+                let feather: CGFloat = 0.16
+                let start = max(0.0, CGFloat(progress) - feather / 2)
+                let end = min(1.0, CGFloat(progress) + feather / 2)
+                let dim = isParenthesized ? 0.22 : 0.32
+
+                return [
+                    .init(color: .white, location: 0.0),
+                    .init(color: .white, location: start),
+                    .init(color: .white.opacity(dim), location: end),
+                    .init(color: .white.opacity(dim), location: 1.0)
+                ]
             }
         }()
 
-        let yOffset: CGFloat = isActivelySinging ? -1.5 : 0
-
-        ZStack(alignment: .leading) {
-            // 1. Inactive Unsung Text (Subtle resting depth)
-            Text(word.text)
-                .font(font)
-                .foregroundStyle(Color.white.opacity(isParenthesized ? 0.26 : 0.34))
-                .shadow(color: Color.black.opacity(0.35), radius: 2.5, x: 0, y: 1.5)
-
-            // 2. Active Volumetric Sung Text (Rich 3D specular shine, deep contact shadows, ambient bloom)
-            Text(word.text)
-                .font(font)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            Color.white,
-                            Color(white: 0.92)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+        Text(word.text)
+            .font(font)
+            .foregroundStyle(
+                LinearGradient(
+                    stops: stops,
+                    startPoint: .leading,
+                    endPoint: .trailing
                 )
-                // Volumetric Contact Shadow (Lifts letters off the glass background)
-                .shadow(color: Color.black.opacity(0.70), radius: 5, x: 0, y: 3)
-                .shadow(color: Color.black.opacity(0.35), radius: 1.5, x: 0, y: 1)
-                // Volumetric Ambient Bloom (Radiates track artwork accent light)
-                .shadow(color: accentColor.opacity(isActivelySinging ? 0.85 : 0.35), radius: isActivelySinging ? 15 : 6, x: 0, y: 0)
-                // Specular Core Radiance while actively singing
-                .shadow(color: isActivelySinging ? Color.white.opacity(0.55) : Color.clear, radius: 7, x: 0, y: 0)
-                .mask {
-                    GeometryReader { geo in
-                        let width = max(1.0, geo.size.width)
-
-                        if progress <= 0.0 {
-                            Color.clear
-                        } else if progress >= 1.0 {
-                            Color.white
-                        } else {
-                            let featherPt: CGFloat = max(6.0, min(14.0, width * 0.30))
-                            let halfFeather = min(0.35, max(0.04, (featherPt / width) / 2.0))
-                            let startStop = max(0.0, progress - halfFeather)
-                            let endStop = min(1.0, progress + halfFeather)
-
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .white, location: 0.0),
-                                    .init(color: .white, location: startStop),
-                                    .init(color: .clear, location: endStop),
-                                    .init(color: .clear, location: 1.0)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        }
-                    }
-                }
-        }
-        .scaleEffect(dynamicScale, anchor: .center)
-        .offset(y: yOffset)
+            )
+            .shadow(color: Color.black.opacity(isReached ? 0.45 : 0.18), radius: 3, x: 0, y: 1.5)
+            .shadow(
+                color: isActivelySinging ? accentColor.opacity(0.60) : (isReached ? accentColor.opacity(0.20) : .clear),
+                radius: isActivelySinging ? 8 : 4,
+                x: 0,
+                y: 0
+            )
+            .scaleEffect(isReached ? 1.06 : 1.0, anchor: .bottomLeading)
+            .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isReached)
     }
 }
 
@@ -1062,7 +1036,7 @@ private struct KaraokeActiveLineView: View {
             let offsetSeconds = player.currentTrackLyricsOffsetMs() / 1000.0
             let adjustedTime = player.preciseCurrentTime() + 0.08 - offsetSeconds
 
-            WordFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+            WordFlowLayout(horizontalSpacing: 6.5, verticalSpacing: 6.0) {
                 ForEach(line.words) { word in
                     let isParen = word.text.contains("(") || word.text.contains(")")
                     KaraokeWordView(
