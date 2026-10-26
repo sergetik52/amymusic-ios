@@ -703,7 +703,7 @@ public struct SyncedLyricsStageView: View {
                                         // Цельный текст Genius для свободного чтения и листания
                                         Button {
                                             if hasAnnotation {
-                                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                withAnimation(.spring(response: 0.40, dampingFraction: 0.82)) {
                                                     expandedAnnotationId = (expandedAnnotationId == annId) ? nil : annId
                                                 }
                                             }
@@ -722,7 +722,7 @@ public struct SyncedLyricsStageView: View {
                                     } else {
                                         Button {
                                             if hasAnnotation {
-                                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                withAnimation(.spring(response: 0.40, dampingFraction: 0.82)) {
                                                     expandedAnnotationId = (expandedAnnotationId == annId) ? nil : annId
                                                 }
                                             }
@@ -748,7 +748,7 @@ public struct SyncedLyricsStageView: View {
                                                     .frame(width: 3)
 
                                                 Text(cleanAnn)
-                                                    .font(.system(size: max(13, player.settings.lyricsFontSize.pointSize * 0.72), weight: .regular))
+                                                    .font(.system(size: max(13, player.settings.lyricsFontSize.pointSize * 0.72), weight: .regular, design: .rounded))
                                                     .foregroundStyle(.white.opacity(0.85))
                                                     .lineSpacing(4)
                                                     .fixedSize(horizontal: false, vertical: true)
@@ -757,7 +757,12 @@ public struct SyncedLyricsStageView: View {
                                             .padding(.vertical, 6)
                                             .padding(.leading, 4)
                                             .padding(.trailing, 8)
-                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                            .transition(
+                                                .asymmetric(
+                                                    insertion: .opacity.combined(with: .offset(y: -8)).combined(with: .scale(scale: 0.96, anchor: .top)),
+                                                    removal: .opacity.combined(with: .offset(y: -8)).combined(with: .scale(scale: 0.96, anchor: .top))
+                                                )
+                                            )
                                         }
                                     }
                                 }
