@@ -773,7 +773,7 @@ public struct SyncedLyricsStageView: View {
                         // В режиме Genius не скроллим автоматически, чтобы пользователь мог свободно листать
                         guard !isGenius else { return }
                         if let newIdx, newIdx < lines.count {
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                            withAnimation(.spring(response: 0.65, dampingFraction: 0.86)) {
                                 proxy.scrollTo(lines[newIdx].id, anchor: .center)
                             }
                         }
@@ -796,17 +796,18 @@ public struct SyncedLyricsStageView: View {
         let baseFontSize = player.settings.lyricsFontSize.pointSize
         let style = player.settings.lyricsTextStyle
         let syncMode = player.settings.lyricsSyncMode
-        let adjustedTime = player.currentTime + 0.08 - (player.currentTrackLyricsOffsetMs() / 1000.0)
 
-        if syncMode == .words && isActive && !line.words.isEmpty {
-            KaraokeActiveLineView(
+        if syncMode == .words && !line.words.isEmpty {
+            KaraokeLineView(
                 line: line,
-                fontSize: baseFontSize,
+                isActive: isActive,
+                distance: distance,
+                baseFontSize: baseFontSize,
+                style: style,
                 accentColor: Color(hex: palette.bright),
                 hasAnnotation: hasAnnotation,
                 player: player
             )
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isActive)
         } else {
             let blurRadius: CGFloat = {
                 guard style == .blur && player.currentLyrics.status == .synced else { return 0 }
@@ -963,27 +964,30 @@ private struct KaraokeWordView: View {
     let fontSize: CGFloat
     let accentColor: Color
     let isParenthesized: Bool
+    let isLineActive: Bool
 
     var body: some View {
         let duration = max(0.08, word.endTime - word.startTime)
         let rawProgress = (currentTime - word.startTime) / duration
         let progress = min(max(0.0, rawProgress), 1.0)
         let isReached = currentTime >= word.startTime
-        let isActivelySinging = rawProgress >= 0.0 && rawProgress < 1.0
-
-        // Real typographic enlargement: letters themselves increase in font size and weight
-        let wordFontSize = isParenthesized
-            ? max(12, fontSize - 2.5)
-            : (isReached ? (fontSize + 1.8) : fontSize)
+        let isActivelySinging = isLineActive && rawProgress >= 0.0 && rawProgress < 1.0
 
         let font: Font = isParenthesized
-            ? .system(size: wordFontSize, weight: isReached ? .heavy : .bold, design: .rounded).italic()
-            : .system(size: wordFontSize, weight: isReached ? .heavy : .bold, design: .rounded)
+            ? .system(size: max(12, fontSize - 2.5), weight: isReached ? .heavy : .bold, design: .rounded).italic()
+            : .system(size: fontSize, weight: isReached ? .heavy : .bold, design: .rounded)
 
         // Gradient stops for smooth left-to-right fill applied directly to the font glyphs:
         let stops: [Gradient.Stop] = {
-            if progress <= 0.0 {
-                let dim = isParenthesized ? 0.22 : 0.32
+            if !isLineActive {
+                let dim = isParenthesized ? 0.22 : 0.34
+                let alpha = isReached ? 0.90 : dim
+                return [
+                    .init(color: .white.opacity(alpha), location: 0.0),
+                    .init(color: .white.opacity(alpha), location: 1.0)
+                ]
+            } else if progress <= 0.0 {
+                let dim = isParenthesized ? 0.22 : 0.34
                 return [
                     .init(color: .white.opacity(dim), location: 0.0),
                     .init(color: .white.opacity(dim), location: 1.0)
@@ -997,7 +1001,7 @@ private struct KaraokeWordView: View {
                 let feather: CGFloat = 0.16
                 let start = max(0.0, CGFloat(progress) - feather / 2)
                 let end = min(1.0, CGFloat(progress) + feather / 2)
-                let dim = isParenthesized ? 0.22 : 0.32
+                let dim = isParenthesized ? 0.22 : 0.34
 
                 return [
                     .init(color: .white, location: 0.0),
@@ -1019,51 +1023,116 @@ private struct KaraokeWordView: View {
                     endPoint: .trailing
                 )
             )
-            .shadow(color: Color.black.opacity(isReached ? 0.45 : 0.18), radius: 2.5, x: 0, y: 1.5)
+            .shadow(color: Color.black.opacity(isReached ? 0.40 : 0.15), radius: 2.5, x: 0, y: 1.5)
             .shadow(
-                color: isActivelySinging ? accentColor.opacity(0.60) : (isReached ? accentColor.opacity(0.20) : .clear),
+                color: isActivelySinging ? accentColor.opacity(0.60) : (isReached ? accentColor.opacity(0.18) : .clear),
                 radius: isActivelySinging ? 8 : 4,
                 x: 0,
                 y: 0
             )
-            .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isReached)
+            .scaleEffect(isReached ? 1.05 : 1.0, anchor: .bottomLeading)
+            .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isReached)
     }
 }
 
-// MARK: - Active Karaoke Line with 60/120Hz ProMotion Smooth Timeline Synchronization
-private struct KaraokeActiveLineView: View {
+// MARK: - Unified Karaoke Line View (Zero-jitter line transitions and fluid row wraps)
+private struct KaraokeLineView: View {
     let line: LyricLine
-    let fontSize: CGFloat
+    let isActive: Bool
+    let distance: Int
+    let baseFontSize: CGFloat
+    let style: LyricsTextStyle
     let accentColor: Color
     let hasAnnotation: Bool
     var player: AudioPlayerManager
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !player.isPlaying)) { _ in
-            let offsetSeconds = player.currentTrackLyricsOffsetMs() / 1000.0
-            let adjustedTime = player.preciseCurrentTime() + 0.08 - offsetSeconds
+        let blurRadius: CGFloat = {
+            guard style == .blur && player.currentLyrics.status == .synced else { return 0 }
+            if isActive { return 0 }
+            switch distance {
+            case 1: return 1.6
+            case 2: return 3.2
+            case 3: return 5.0
+            default: return 7.5
+            }
+        }()
 
-            WordFlowLayout(horizontalSpacing: 8.5, verticalSpacing: 7.0) {
-                ForEach(line.words) { word in
-                    let isParen = word.text.contains("(") || word.text.contains(")")
-                    KaraokeWordView(
-                        word: word,
-                        currentTime: adjustedTime,
-                        fontSize: fontSize,
-                        accentColor: accentColor,
-                        isParenthesized: isParen
-                    )
+        let lineOpacity: Double = {
+            if isActive { return 1.0 }
+            switch distance {
+            case 1: return 0.50
+            case 2: return 0.36
+            default: return 0.26
+            }
+        }()
+
+        let lineScale: CGFloat = {
+            switch style {
+            case .scale: return isActive ? 1.06 : 0.98
+            case .blur: return isActive ? 1.03 : 1.0
+            case .normal: return 1.0
+            }
+        }()
+
+        Group {
+            if isActive {
+                // Active Line: 60/120Hz smooth ProMotion time synchronization
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !player.isPlaying)) { _ in
+                    let offsetSeconds = player.currentTrackLyricsOffsetMs() / 1000.0
+                    let adjustedTime = player.preciseCurrentTime() + 0.08 - offsetSeconds
+
+                    WordFlowLayout(horizontalSpacing: 9.5, verticalSpacing: 7.0) {
+                        ForEach(line.words) { word in
+                            let isParen = word.text.contains("(") || word.text.contains(")")
+                            KaraokeWordView(
+                                word: word,
+                                currentTime: adjustedTime,
+                                fontSize: baseFontSize,
+                                accentColor: accentColor,
+                                isParenthesized: isParen,
+                                isLineActive: true
+                            )
+                        }
+
+                        if hasAnnotation {
+                            Text(" ””")
+                                .font(.system(size: max(13, baseFontSize - 2), weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.white.opacity(0.85))
+                                .shadow(color: accentColor.opacity(0.50), radius: 6)
+                        }
+                    }
                 }
+            } else {
+                // Inactive Line: rendered with identical WordFlowLayout geometry for 100% height stability
+                let isPastLine = player.currentTime > line.time
+                WordFlowLayout(horizontalSpacing: 9.5, verticalSpacing: 7.0) {
+                    ForEach(line.words) { word in
+                        let isParen = word.text.contains("(") || word.text.contains(")")
+                        KaraokeWordView(
+                            word: word,
+                            currentTime: isPastLine ? (word.endTime + 1.0) : (word.startTime - 1.0),
+                            fontSize: baseFontSize,
+                            accentColor: accentColor,
+                            isParenthesized: isParen,
+                            isLineActive: false
+                        )
+                    }
 
-                if hasAnnotation {
-                    Text(" ””")
-                        .font(.system(size: max(13, fontSize - 2), weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .shadow(color: accentColor.opacity(0.50), radius: 6)
+                    if hasAnnotation {
+                        Text(" ””")
+                            .font(.system(size: max(13, baseFontSize - 2), weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(0.50))
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .blur(radius: blurRadius)
+        .opacity(lineOpacity)
+        .scaleEffect(lineScale, anchor: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.spring(response: 0.52, dampingFraction: 0.85), value: isActive)
+        .animation(.spring(response: 0.52, dampingFraction: 0.85), value: distance)
     }
 }
 
