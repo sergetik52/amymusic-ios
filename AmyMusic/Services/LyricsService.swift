@@ -625,15 +625,20 @@ public actor LyricsService {
             let nextTime = (index + 1 < temp.count) ? temp[index + 1].time : max(item.time + 4.0, trackDuration)
             let lineSpan = max(0.8, min(6.5, nextTime - item.time - 0.15))
             let tokens = item.text.split(separator: " ").map(String.init)
-            let wordStep = tokens.isEmpty ? lineSpan : lineSpan / Double(tokens.count)
+            let totalWeight = max(1, tokens.reduce(0) { $0 + max(1, $1.count) })
+            var currentStart = item.time
 
             let words: [LyricWord] = tokens.enumerated().map { wIdx, word in
-                let start = item.time + Double(wIdx) * wordStep
+                let wordWeight = Double(max(1, word.count))
+                let wordDuration = lineSpan * (wordWeight / Double(totalWeight))
+                let start = currentStart
+                let end = start + wordDuration
+                currentStart = end
                 return LyricWord(
                     id: "\(index)_\(wIdx)",
                     text: word,
                     startTime: start,
-                    endTime: start + wordStep
+                    endTime: end
                 )
             }
 

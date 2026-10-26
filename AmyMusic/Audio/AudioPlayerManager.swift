@@ -34,6 +34,18 @@ public final class AudioPlayerManager {
     public var isAutoplayEnabled: Bool = true
     public var audioEnergy: AudioEnergy = .zero
 
+    // MARK: - High-Precision Time Tracking (60/120Hz ProMotion Smooth Animations)
+    public private(set) var lastTimeUpdateTimestamp: TimeInterval = CACurrentMediaTime()
+
+    public func preciseCurrentTime() -> TimeInterval {
+        guard isPlaying else { return currentTime }
+        let elapsed = CACurrentMediaTime() - lastTimeUpdateTimestamp
+        if elapsed > 0 && elapsed < 0.25 {
+            return currentTime + elapsed
+        }
+        return currentTime
+    }
+
     // MARK: - User Library & Collections State
     public var likedTracks: [Track] = []
     public var dislikedTracks: [Track] = []
@@ -174,13 +186,14 @@ public final class AudioPlayerManager {
 
     private func setupPlayerObservers() {
         for idx in 0..<2 {
-            let interval = CMTime(seconds: 0.2, preferredTimescale: 600)
+            let interval = CMTime(seconds: 0.04, preferredTimescale: 600)
             let player = players[idx]
             timeObserverTokens[idx] = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] cmTime in
                 Task { @MainActor [weak self] in
                     guard let self, self.activeEngineIdx == idx else { return }
                     let secs = cmTime.seconds
                     guard secs.isFinite && secs >= 0 else { return }
+                    self.lastTimeUpdateTimestamp = CACurrentMediaTime()
                     let delta = max(0, secs - self.currentTime)
                     if delta > 0 && delta < 1.5 && self.isPlaying {
                         self.listenAccumulator += delta
@@ -504,6 +517,7 @@ public final class AudioPlayerManager {
         guard currentTrack != nil else { return }
         players[activeEngineIdx].play()
         isPlaying = true
+        lastTimeUpdateTimestamp = CACurrentMediaTime()
         updateNowPlayingInfo()
     }
 
@@ -511,6 +525,7 @@ public final class AudioPlayerManager {
         players[0].pause()
         players[1].pause()
         isPlaying = false
+        lastTimeUpdateTimestamp = CACurrentMediaTime()
         updateNowPlayingInfo()
     }
 
@@ -557,6 +572,7 @@ public final class AudioPlayerManager {
         let target = CMTime(seconds: max(0, seconds), preferredTimescale: 600)
         players[activeEngineIdx].seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
         currentTime = max(0, seconds)
+        lastTimeUpdateTimestamp = CACurrentMediaTime()
         updateNowPlayingInfo()
     }
 
