@@ -82,7 +82,7 @@ public struct MiniKaraokeFloatingOverlay: View {
                             player.seek(to: line.time)
                         } label: {
                             Text(line.text)
-                                .font(.system(size: isCurrent ? 15 : 13, weight: isCurrent ? .bold : .medium))
+                                .font(.system(size: isCurrent ? 15 : 13, weight: isCurrent ? .bold : .medium, design: .rounded))
                                 .foregroundStyle(isCurrent ? .white : .white.opacity(0.42))
                                 .blur(radius: isCurrent ? 0 : 0.8)
                                 .lineLimit(2)

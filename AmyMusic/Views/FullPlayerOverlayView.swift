@@ -891,19 +891,19 @@ fileprivate func buildStyledLyricLine(
     for token in tokens {
         if token.isParenthesized {
             result = result + Text(token.text)
-                .font(.system(size: max(11, baseFontSize - 3.5), weight: .medium))
+                .font(.system(size: max(11, baseFontSize - 3.5), weight: .medium, design: .rounded))
                 .italic()
                 .foregroundColor(isActive ? (isGenius ? Color.white.opacity(0.60) : Color.white.opacity(0.55)) : Color.white.opacity(0.24))
         } else {
             result = result + Text(token.text)
-                .font(.system(size: baseFontSize, weight: isGenius ? .bold : .black))
+                .font(.system(size: baseFontSize, weight: isGenius ? .bold : (isActive ? .heavy : .bold), design: .rounded))
                 .foregroundColor(isActive ? .white : (isGenius ? .white.opacity(0.95) : .white.opacity(0.34)))
         }
     }
 
     if hasAnnotation {
         result = result + Text(" ””")
-            .font(.system(size: max(12, baseFontSize - 1.5), weight: .bold))
+            .font(.system(size: max(12, baseFontSize - 1.5), weight: .bold, design: .rounded))
             .foregroundColor(Color.white.opacity(0.75))
     }
 
@@ -912,11 +912,11 @@ fileprivate func buildStyledLyricLine(
 
 // MARK: - WordFlowLayout for Native Apple Music Karaoke Flow
 private struct WordFlowLayout: Layout {
-    var horizontalSpacing: CGFloat = 6.5
-    var verticalSpacing: CGFloat = 6.0
+    var horizontalSpacing: CGFloat = 8.5
+    var verticalSpacing: CGFloat = 7.0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 0
+        let maxAvailableWidth = (proposal.width != nil && proposal.width! > 0) ? proposal.width! : (UIScreen.main.bounds.width - 48)
         var height: CGFloat = 0
         var x: CGFloat = 0
         var y: CGFloat = 0
@@ -924,7 +924,7 @@ private struct WordFlowLayout: Layout {
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > width && x > 0 {
+            if x + size.width > maxAvailableWidth && x > 0 {
                 x = 0
                 y += rowHeight + verticalSpacing
                 rowHeight = 0
@@ -933,22 +933,23 @@ private struct WordFlowLayout: Layout {
             x += size.width + horizontalSpacing
         }
         height = y + rowHeight
-        return CGSize(width: width, height: height)
+        return CGSize(width: maxAvailableWidth, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var x = bounds.minX
         var y = bounds.minY
         var rowHeight: CGFloat = 0
+        let maxRight = bounds.width > 0 ? bounds.maxX : (bounds.minX + UIScreen.main.bounds.width - 48)
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > bounds.maxX && x > bounds.minX {
+            if x + size.width > maxRight && x > bounds.minX {
                 x = bounds.minX
                 y += rowHeight + verticalSpacing
                 rowHeight = 0
             }
-            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
             rowHeight = max(rowHeight, size.height)
             x += size.width + horizontalSpacing
         }
@@ -970,9 +971,14 @@ private struct KaraokeWordView: View {
         let isReached = currentTime >= word.startTime
         let isActivelySinging = rawProgress >= 0.0 && rawProgress < 1.0
 
+        // Real typographic enlargement: letters themselves increase in font size and weight
+        let wordFontSize = isParenthesized
+            ? max(12, fontSize - 2.5)
+            : (isReached ? (fontSize + 1.8) : fontSize)
+
         let font: Font = isParenthesized
-            ? .system(size: max(12, fontSize - 2.5), weight: isReached ? .heavy : .bold, design: .rounded).italic()
-            : .system(size: fontSize, weight: isReached ? .heavy : .bold, design: .rounded)
+            ? .system(size: wordFontSize, weight: isReached ? .heavy : .bold, design: .rounded).italic()
+            : .system(size: wordFontSize, weight: isReached ? .heavy : .bold, design: .rounded)
 
         // Gradient stops for smooth left-to-right fill applied directly to the font glyphs:
         let stops: [Gradient.Stop] = {
@@ -1004,6 +1010,8 @@ private struct KaraokeWordView: View {
 
         Text(word.text)
             .font(font)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .foregroundStyle(
                 LinearGradient(
                     stops: stops,
@@ -1011,14 +1019,13 @@ private struct KaraokeWordView: View {
                     endPoint: .trailing
                 )
             )
-            .shadow(color: Color.black.opacity(isReached ? 0.45 : 0.18), radius: 3, x: 0, y: 1.5)
+            .shadow(color: Color.black.opacity(isReached ? 0.45 : 0.18), radius: 2.5, x: 0, y: 1.5)
             .shadow(
                 color: isActivelySinging ? accentColor.opacity(0.60) : (isReached ? accentColor.opacity(0.20) : .clear),
                 radius: isActivelySinging ? 8 : 4,
                 x: 0,
                 y: 0
             )
-            .scaleEffect(isReached ? 1.06 : 1.0, anchor: .bottomLeading)
             .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isReached)
     }
 }
@@ -1036,7 +1043,7 @@ private struct KaraokeActiveLineView: View {
             let offsetSeconds = player.currentTrackLyricsOffsetMs() / 1000.0
             let adjustedTime = player.preciseCurrentTime() + 0.08 - offsetSeconds
 
-            WordFlowLayout(horizontalSpacing: 6.5, verticalSpacing: 6.0) {
+            WordFlowLayout(horizontalSpacing: 8.5, verticalSpacing: 7.0) {
                 ForEach(line.words) { word in
                     let isParen = word.text.contains("(") || word.text.contains(")")
                     KaraokeWordView(
