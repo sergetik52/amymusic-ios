@@ -725,14 +725,14 @@ public actor LyricsService {
         }
     }
 
-    /// Finds the active lyric index with `+0.08s` lookahead and custom user millisecond offset
+    /// Finds the active lyric index with `+0.22s` smooth lead-in lookahead and custom user millisecond offset
     public static func activeLyricIndex(
         in lines: [LyricLine],
         currentTime: TimeInterval,
         offsetMs: Double = 0
     ) -> Int? {
         guard !lines.isEmpty else { return nil }
-        let adjusted = currentTime + 0.08 - (offsetMs / 1000.0)
+        let adjusted = currentTime + 0.22 - (offsetMs / 1000.0)
         var active: Int? = nil
         for (idx, line) in lines.enumerated() {
             if adjusted >= line.time {

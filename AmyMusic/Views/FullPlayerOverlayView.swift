@@ -711,7 +711,6 @@ public struct SyncedLyricsStageView: View {
                                             buildStyledLyricLine(
                                                 text: line.text,
                                                 baseFontSize: player.settings.lyricsFontSize.pointSize,
-                                                isActive: true,
                                                 isGenius: true,
                                                 hasAnnotation: hasAnnotation
                                             )
@@ -778,8 +777,8 @@ public struct SyncedLyricsStageView: View {
                         // В режиме Genius не скроллим автоматически, чтобы пользователь мог свободно листать
                         guard !isGenius else { return }
                         if let newIdx, newIdx < lines.count {
-                            withAnimation(.spring(response: 0.65, dampingFraction: 0.86)) {
-                                proxy.scrollTo(lines[newIdx].id, anchor: .center)
+                            withAnimation(.spring(response: 0.72, dampingFraction: 0.88, blendDuration: 0.25)) {
+                                proxy.scrollTo(lines[newIdx].id, anchor: UnitPoint(x: 0.5, y: 0.36))
                             }
                         }
                     }
@@ -825,10 +824,19 @@ public struct SyncedLyricsStageView: View {
                 }
             }()
 
+            let lineOpacity: Double = {
+                if isActive { return 1.0 }
+                switch distance {
+                case 1: return 0.50
+                case 2: return 0.36
+                default: return 0.26
+                }
+            }()
+
             let scale: CGFloat = {
                 switch style {
-                case .scale: return isActive ? 1.12 : 0.96
-                case .blur: return isActive ? 1.04 : 1.0
+                case .scale: return isActive ? 1.08 : 0.97
+                case .blur: return isActive ? 1.03 : 1.0
                 case .normal: return 1.0
                 }
             }()
@@ -836,14 +844,15 @@ public struct SyncedLyricsStageView: View {
             buildStyledLyricLine(
                 text: line.text,
                 baseFontSize: baseFontSize,
-                isActive: isActive,
                 isGenius: false,
                 hasAnnotation: hasAnnotation
             )
+            .opacity(lineOpacity)
             .blur(radius: blurRadius)
             .scaleEffect(scale, anchor: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isActive)
+            .animation(.spring(response: 0.60, dampingFraction: 0.86), value: isActive)
+            .animation(.spring(response: 0.60, dampingFraction: 0.86), value: distance)
         }
     }
 }
@@ -887,7 +896,6 @@ fileprivate func tokenizeLyricLine(_ text: String) -> [LyricToken] {
 fileprivate func buildStyledLyricLine(
     text: String,
     baseFontSize: CGFloat,
-    isActive: Bool,
     isGenius: Bool,
     hasAnnotation: Bool
 ) -> Text {
@@ -899,18 +907,18 @@ fileprivate func buildStyledLyricLine(
             result = result + Text(token.text)
                 .font(.system(size: max(11, baseFontSize - 3.5), weight: .medium, design: .rounded))
                 .italic()
-                .foregroundColor(isActive ? (isGenius ? Color.white.opacity(0.60) : Color.white.opacity(0.55)) : Color.white.opacity(0.24))
+                .foregroundColor(Color.white.opacity(0.60))
         } else {
             result = result + Text(token.text)
-                .font(.system(size: baseFontSize, weight: isGenius ? .bold : (isActive ? .heavy : .bold), design: .rounded))
-                .foregroundColor(isActive ? .white : (isGenius ? .white.opacity(0.95) : .white.opacity(0.34)))
+                .font(.system(size: baseFontSize, weight: .bold, design: .rounded))
+                .foregroundColor(Color.white)
         }
     }
 
     if hasAnnotation {
         result = result + Text(" ””")
             .font(.system(size: max(12, baseFontSize - 1.5), weight: .bold, design: .rounded))
-            .foregroundColor(Color.white.opacity(0.75))
+            .foregroundColor(Color.white.opacity(0.85))
     }
 
     return result
@@ -979,20 +987,20 @@ private struct KaraokeWordView: View {
         let isActivelySinging = isLineActive && rawProgress >= 0.0 && rawProgress < 1.0
 
         let font: Font = isParenthesized
-            ? .system(size: max(12, fontSize - 2.5), weight: isReached ? .heavy : .bold, design: .rounded).italic()
-            : .system(size: fontSize, weight: isReached ? .heavy : .bold, design: .rounded)
+            ? .system(size: max(12, fontSize - 2.5), weight: .bold, design: .rounded).italic()
+            : .system(size: fontSize, weight: .bold, design: .rounded)
 
         // Gradient stops for smooth left-to-right fill applied directly to the font glyphs:
         let stops: [Gradient.Stop] = {
             if !isLineActive {
-                let dim = isParenthesized ? 0.22 : 0.34
-                let alpha = isReached ? 0.90 : dim
+                let dim = isParenthesized ? 0.22 : 0.38
+                let alpha = isReached ? 0.95 : dim
                 return [
                     .init(color: .white.opacity(alpha), location: 0.0),
                     .init(color: .white.opacity(alpha), location: 1.0)
                 ]
             } else if progress <= 0.0 {
-                let dim = isParenthesized ? 0.22 : 0.34
+                let dim = isParenthesized ? 0.22 : 0.38
                 return [
                     .init(color: .white.opacity(dim), location: 0.0),
                     .init(color: .white.opacity(dim), location: 1.0)
@@ -1006,7 +1014,7 @@ private struct KaraokeWordView: View {
                 let feather: CGFloat = 0.16
                 let start = max(0.0, CGFloat(progress) - feather / 2)
                 let end = min(1.0, CGFloat(progress) + feather / 2)
-                let dim = isParenthesized ? 0.22 : 0.34
+                let dim = isParenthesized ? 0.22 : 0.38
 
                 return [
                     .init(color: .white, location: 0.0),
@@ -1035,8 +1043,9 @@ private struct KaraokeWordView: View {
                 x: 0,
                 y: 0
             )
-            .scaleEffect(isReached ? 1.05 : 1.0, anchor: .bottomLeading)
-            .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isReached)
+            .scaleEffect(isReached ? 1.04 : 1.0, anchor: .bottomLeading)
+            .animation(.spring(response: 0.40, dampingFraction: 0.82), value: isReached)
+            .animation(.easeInOut(duration: 0.3), value: isActivelySinging)
     }
 }
 
@@ -1080,55 +1089,31 @@ private struct KaraokeLineView: View {
             }
         }()
 
-        Group {
-            if isActive {
-                // Active Line: 60/120Hz smooth ProMotion time synchronization
-                TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !player.isPlaying)) { _ in
-                    let offsetSeconds = player.currentTrackLyricsOffsetMs() / 1000.0
-                    let adjustedTime = player.preciseCurrentTime() + 0.08 - offsetSeconds
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isActive || !player.isPlaying)) { _ in
+            let offsetSeconds = player.currentTrackLyricsOffsetMs() / 1000.0
+            let isPastLine = player.currentTime > line.time
+            let adjustedTime: TimeInterval = isActive
+                ? (player.preciseCurrentTime() + 0.08 - offsetSeconds)
+                : (isPastLine ? (line.time + 999.0) : (line.time - 1.0))
 
-                    WordFlowLayout(horizontalSpacing: 9.5, verticalSpacing: 7.0) {
-                        ForEach(line.words) { word in
-                            let isParen = word.text.contains("(") || word.text.contains(")")
-                            KaraokeWordView(
-                                word: word,
-                                currentTime: adjustedTime,
-                                fontSize: baseFontSize,
-                                accentColor: accentColor,
-                                isParenthesized: isParen,
-                                isLineActive: true
-                            )
-                        }
-
-                        if hasAnnotation {
-                            Text(" ””")
-                                .font(.system(size: max(13, baseFontSize - 2), weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.white.opacity(0.85))
-                                .shadow(color: accentColor.opacity(0.50), radius: 6)
-                        }
-                    }
+            WordFlowLayout(horizontalSpacing: 9.5, verticalSpacing: 7.0) {
+                ForEach(line.words) { word in
+                    let isParen = word.text.contains("(") || word.text.contains(")")
+                    KaraokeWordView(
+                        word: word,
+                        currentTime: adjustedTime,
+                        fontSize: baseFontSize,
+                        accentColor: accentColor,
+                        isParenthesized: isParen,
+                        isLineActive: isActive
+                    )
                 }
-            } else {
-                // Inactive Line: rendered with identical WordFlowLayout geometry for 100% height stability
-                let isPastLine = player.currentTime > line.time
-                WordFlowLayout(horizontalSpacing: 9.5, verticalSpacing: 7.0) {
-                    ForEach(line.words) { word in
-                        let isParen = word.text.contains("(") || word.text.contains(")")
-                        KaraokeWordView(
-                            word: word,
-                            currentTime: isPastLine ? (word.endTime + 1.0) : (word.startTime - 1.0),
-                            fontSize: baseFontSize,
-                            accentColor: accentColor,
-                            isParenthesized: isParen,
-                            isLineActive: false
-                        )
-                    }
 
-                    if hasAnnotation {
-                        Text(" ””")
-                            .font(.system(size: max(13, baseFontSize - 2), weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.white.opacity(0.50))
-                    }
+                if hasAnnotation {
+                    Text(" ””")
+                        .font(.system(size: max(13, baseFontSize - 2), weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(isActive ? 0.85 : 0.50))
+                        .shadow(color: accentColor.opacity(isActive ? 0.50 : 0.0), radius: 6)
                 }
             }
         }
@@ -1136,8 +1121,8 @@ private struct KaraokeLineView: View {
         .opacity(lineOpacity)
         .scaleEffect(lineScale, anchor: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.spring(response: 0.52, dampingFraction: 0.85), value: isActive)
-        .animation(.spring(response: 0.52, dampingFraction: 0.85), value: distance)
+        .animation(.spring(response: 0.60, dampingFraction: 0.86), value: isActive)
+        .animation(.spring(response: 0.60, dampingFraction: 0.86), value: distance)
     }
 }
 
