@@ -627,7 +627,9 @@ public final class AudioPlayerManager {
                 return
             }
             let asset: AVURLAsset
-            if let proxyConfig = SoundCloudProxyManager.shared.getActiveProxyConfig(settings: self.settings),
+            if streamUrl.isFileURL {
+                asset = AVURLAsset(url: streamUrl)
+            } else if let proxyConfig = SoundCloudProxyManager.shared.getActiveProxyConfig(settings: self.settings),
                proxyConfig.isForwardProxy,
                !track.isHls {
                 var comps = URLComponents(url: streamUrl, resolvingAgainstBaseURL: false)
@@ -729,6 +731,11 @@ public final class AudioPlayerManager {
     }
 
     private func resolvePlayableUrl(for track: Track) async -> URL? {
+        // 1. Check if track is saved locally in OfflineMusic storage (Instant zero-buffer offline playback)
+        if let offlineUrl = OfflineMusicManager.shared.localAudioFileUrl(for: track.id) {
+            return offlineUrl
+        }
+
         // Check if existing streamUrl is still fresh (< 90 seconds old)
         if let existing = track.streamUrl,
            let fetchedAt = track.fetchedAt,
@@ -1135,6 +1142,12 @@ public final class AudioPlayerManager {
     public func loadLyricsForCurrentTrack(forceRefresh: Bool = false) async {
         guard let track = currentTrack else {
             currentLyrics = .empty
+            return
+        }
+        if !forceRefresh, let offlineLyrics = OfflineMusicManager.shared.localLyrics(for: track.id) {
+            self.currentLyrics = offlineLyrics
+            self.isLyricsLoading = false
+            self.updateNowPlayingInfo()
             return
         }
         isLyricsLoading = true

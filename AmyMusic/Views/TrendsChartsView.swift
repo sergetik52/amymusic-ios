@@ -308,10 +308,22 @@ public struct TrackRowItemView: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(track.artist)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        if OfflineMusicManager.shared.isTrackDownloaded(track.id) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color(hex: "#34C759"))
+                        } else if OfflineMusicManager.shared.isDownloading(track.id) {
+                            ProgressView()
+                                .scaleEffect(0.55)
+                                .frame(width: 10, height: 10)
+                        }
+
+                        Text(track.artist)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.58))
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer()
@@ -451,6 +463,22 @@ public struct TrackNativeContextMenuItems: View {
                 liked ? "Удалить из избранного" : "Добавить в избранное",
                 systemImage: liked ? "heart.slash.fill" : "heart.fill"
             )
+        }
+
+        Divider()
+
+        if OfflineMusicManager.shared.isTrackDownloaded(track.id) {
+            Button(role: .destructive) {
+                OfflineMusicManager.shared.deleteTrack(id: track.id)
+            } label: {
+                Label("Удалить из загрузок", systemImage: "trash")
+            }
+        } else {
+            Button {
+                Task { await OfflineMusicManager.shared.downloadTrack(track) }
+            } label: {
+                Label("Скачать на устройство", systemImage: "arrow.down.circle")
+            }
         }
 
         if !player.userPlaylists.isEmpty {

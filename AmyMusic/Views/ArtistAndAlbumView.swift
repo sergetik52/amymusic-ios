@@ -151,6 +151,37 @@ public struct ArtistDetailPageView: View {
                                             .padding(.vertical, 11)
                                     }
                                     .buttonStyle(AppleLiquidGlassButtonStyle(shape: Capsule(), tintColor: subscribed ? Color.white.opacity(0.25) : nil, tintOpacity: subscribed ? 0.45 : 0.15))
+
+                                    let isArtistDownloaded = OfflineMusicManager.shared.isArtistDownloaded(profile.id)
+                                    let isArtistDownloading = OfflineMusicManager.shared.isDownloading(profile.id)
+                                    Button {
+                                        if isArtistDownloaded {
+                                            OfflineMusicManager.shared.deleteArtist(id: profile.id)
+                                        } else if !isArtistDownloading {
+                                            Task {
+                                                await OfflineMusicManager.shared.downloadArtist(
+                                                    artistId: profile.id,
+                                                    name: profile.name,
+                                                    avatarUrl: profile.avatarUrl,
+                                                    profile: profile
+                                                )
+                                            }
+                                        }
+                                    } label: {
+                                        Group {
+                                            if isArtistDownloading {
+                                                ProgressView()
+                                                    .tint(.white)
+                                                    .scaleEffect(0.80)
+                                            } else {
+                                                Image(systemName: isArtistDownloaded ? "arrow.down.circle.fill" : "arrow.down.circle")
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundStyle(isArtistDownloaded ? Color(hex: "#34C759") : .white)
+                                            }
+                                        }
+                                        .frame(width: 42, height: 42)
+                                    }
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: isArtistDownloaded ? Color(hex: "#34C759").opacity(0.30) : nil))
                                 }
 
                                 // Genre #tag chips
@@ -582,6 +613,32 @@ public struct AlbumOrPlaylistSheetView: View {
                                         }
                                         .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: isSaved ? Color(hex: "#FF3B30").opacity(0.30) : nil))
                                     }
+
+                                    let isDownloaded = OfflineMusicManager.shared.isReleaseDownloaded(activeRelease.id)
+                                    let isDownloading = OfflineMusicManager.shared.isDownloading(activeRelease.id)
+                                    Button {
+                                        if isDownloaded {
+                                            OfflineMusicManager.shared.deleteRelease(id: activeRelease.id)
+                                        } else if !isDownloading {
+                                            Task {
+                                                await OfflineMusicManager.shared.downloadRelease(activeRelease)
+                                            }
+                                        }
+                                    } label: {
+                                        Group {
+                                            if isDownloading {
+                                                ProgressView()
+                                                    .tint(.white)
+                                                    .scaleEffect(0.85)
+                                            } else {
+                                                Image(systemName: isDownloaded ? "arrow.down.circle.fill" : "arrow.down.circle")
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundStyle(isDownloaded ? Color(hex: "#34C759") : .white)
+                                            }
+                                        }
+                                        .frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(AppleLiquidGlassButtonStyle(shape: Circle(), tintColor: isDownloaded ? Color(hex: "#34C759").opacity(0.30) : nil))
                                 }
                             }
                             .padding(.top, 16)

@@ -17,12 +17,14 @@
 		35638E9349DBBE319787B590 /* HomeWaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46712EAF6973EE37550967D1 /* HomeWaveView.swift */; };
 		39F7B1D83E96D2B229432BAE /* MiniKaraokeFloatingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6477BF840CB29BDE427E20 /* MiniKaraokeFloatingOverlay.swift */; };
 		44D69A2A6E0BF58F764BB7EE /* AmyMusicLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37CD2FAA9DB0610C1743B352 /* AmyMusicLiveActivity.swift */; };
+		4877C04A89F0238097A4344D /* OfflineLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A2B592B72DE459D9C46A83C /* OfflineLibraryView.swift */; };
 		5631D1336211D1707A0F3F12 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C94D72C7CD4865CF889886EE /* SearchView.swift */; };
 		57325BC3EDC7806B0AC3A2CC /* SoundCloudService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBB612A269CE3A2A5B6A951 /* SoundCloudService.swift */; };
 		57B4AAFC60EAC2B9089B2597 /* TrendsChartsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17E5ECDCABC6E4028B128CC /* TrendsChartsView.swift */; };
 		603A38F1E642778571E29C0A /* SoundCloudProxyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986297B2447B1876270AD1C1 /* SoundCloudProxyManager.swift */; };
 		6314A9E32DFED23F5361C1FA /* AmyMusicWidgetLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B710A310BAC0D6A018A497 /* AmyMusicWidgetLiveActivity.swift */; };
 		66610E37CCFE3420CFEED6F0 /* YandexMusicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15CC0C17E4491A0FB79CC3CC /* YandexMusicService.swift */; };
+		81BA1C0EFB83D6864540C39F /* OfflineMusicManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BA3E508EEBEF2182002EA44 /* OfflineMusicManager.swift */; };
 		908B411709C034F21029FCAC /* LiquidGlassTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E87C54D82FCCF66EEFDCCF2 /* LiquidGlassTheme.swift */; };
 		99ADE9CDF1EB9A6AB97950AA /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20121C165E447C9D6B9EC828 /* AudioPlayerManager.swift */; };
 		A075FF3ED9D5237EAB586A54 /* SpotifyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8CB8A7E9734CC9CF15554C /* SpotifyService.swift */; };
@@ -65,10 +67,12 @@
 		15CC0C17E4491A0FB79CC3CC /* YandexMusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YandexMusicService.swift; sourceTree = "<group>"; };
 		20121C165E447C9D6B9EC828 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
 		37CD2FAA9DB0610C1743B352 /* AmyMusicLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmyMusicLiveActivity.swift; sourceTree = "<group>"; };
+		3BA3E508EEBEF2182002EA44 /* OfflineMusicManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMusicManager.swift; sourceTree = "<group>"; };
 		3C176B11DE13CBE8AECF3740 /* AmyMusicWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AmyMusicWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4398662779708F34613078D1 /* ReleaseCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseCacheManager.swift; sourceTree = "<group>"; };
 		46712EAF6973EE37550967D1 /* HomeWaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWaveView.swift; sourceTree = "<group>"; };
 		4DAA00FB40FBA48FED01C6F2 /* ArtistAndAlbumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistAndAlbumView.swift; sourceTree = "<group>"; };
+		5A2B592B72DE459D9C46A83C /* OfflineLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineLibraryView.swift; sourceTree = "<group>"; };
 		5A511636285A2AACD112AD0B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5E9A755E3AC5D53058596393 /* FullPlayerOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullPlayerOverlayView.swift; sourceTree = "<group>"; };
 		5EC3D130D60E07A97299BEC1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -77,6 +81,8 @@
 		6E87C54D82FCCF66EEFDCCF2 /* LiquidGlassTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassTheme.swift; sourceTree = "<group>"; };
 		6E8CEA7065F547E46BEC1F10 /* CollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionView.swift; sourceTree = "<group>"; };
 		74490FCCF4A9A7BC6E6C5F3A /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		74CA24B16150B7874B91F6B6 /* AmyMusicWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AmyMusicWidget.entitlements; sourceTree = "<group>"; };
+		85AC7B40E59673E2213614E8 /* AmyMusic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AmyMusic.entitlements; sourceTree = "<group>"; };
 		984360EA7BE09BBE5B0F44C9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		986297B2447B1876270AD1C1 /* SoundCloudProxyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundCloudProxyManager.swift; sourceTree = "<group>"; };
 		B591AB1D60B344C1C6C5F1AE /* ImageCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCacheManager.swift; sourceTree = "<group>"; };
@@ -119,6 +125,7 @@
 		47220A71315175FA4972D173 /* AmyMusic */ = {
 			isa = PBXGroup;
 			children = (
+				85AC7B40E59673E2213614E8 /* AmyMusic.entitlements */,
 				DE1CEA17E955F6A512F4D3EC /* AmyMusicApp.swift */,
 				5EC3D130D60E07A97299BEC1 /* Assets.xcassets */,
 				5A511636285A2AACD112AD0B /* Info.plist */,
@@ -136,6 +143,7 @@
 			children = (
 				B591AB1D60B344C1C6C5F1AE /* ImageCacheManager.swift */,
 				F152B9575EFCCF037F49D08E /* LyricsService.swift */,
+				3BA3E508EEBEF2182002EA44 /* OfflineMusicManager.swift */,
 				4398662779708F34613078D1 /* ReleaseCacheManager.swift */,
 				986297B2447B1876270AD1C1 /* SoundCloudProxyManager.swift */,
 				6CBB612A269CE3A2A5B6A951 /* SoundCloudService.swift */,
@@ -157,6 +165,7 @@
 		CCF6C3BFEA2F07C8F477EBB5 /* AmyMusicWidget */ = {
 			isa = PBXGroup;
 			children = (
+				74CA24B16150B7874B91F6B6 /* AmyMusicWidget.entitlements */,
 				F7B710A310BAC0D6A018A497 /* AmyMusicWidgetLiveActivity.swift */,
 				984360EA7BE09BBE5B0F44C9 /* Info.plist */,
 			);
@@ -171,6 +180,7 @@
 				5E9A755E3AC5D53058596393 /* FullPlayerOverlayView.swift */,
 				46712EAF6973EE37550967D1 /* HomeWaveView.swift */,
 				0A6477BF840CB29BDE427E20 /* MiniKaraokeFloatingOverlay.swift */,
+				5A2B592B72DE459D9C46A83C /* OfflineLibraryView.swift */,
 				74490FCCF4A9A7BC6E6C5F3A /* RootTabView.swift */,
 				C94D72C7CD4865CF889886EE /* SearchView.swift */,
 				FB213F113F42170E0FEA08BC /* SettingsAndProfileView.swift */,
@@ -306,6 +316,8 @@
 				B548230A9532674B379FF416 /* LyricsService.swift in Sources */,
 				39F7B1D83E96D2B229432BAE /* MiniKaraokeFloatingOverlay.swift in Sources */,
 				1B82914C1023145933D15429 /* Models.swift in Sources */,
+				4877C04A89F0238097A4344D /* OfflineLibraryView.swift in Sources */,
+				81BA1C0EFB83D6864540C39F /* OfflineMusicManager.swift in Sources */,
 				08C24109CB485F5FE48FB80C /* ReleaseCacheManager.swift in Sources */,
 				2AF3774D88CCA712A2793BF8 /* RootTabView.swift in Sources */,
 				5631D1336211D1707A0F3F12 /* SearchView.swift in Sources */,
@@ -408,7 +420,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				CODE_SIGN_ENTITLEMENTS = AmyMusic/AmyMusic.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -485,7 +496,6 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				CODE_SIGN_ENTITLEMENTS = AmyMusicWidget/AmyMusicWidget.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios.widget;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -506,7 +516,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				CODE_SIGN_ENTITLEMENTS = AmyMusic/AmyMusic.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -525,7 +534,6 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				CODE_SIGN_ENTITLEMENTS = AmyMusicWidget/AmyMusicWidget.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.amymusic.ios.widget;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
