@@ -116,27 +116,52 @@ public final class OfflineMusicManager {
 
     // MARK: - Index Persistence & Integrity Check
 
+    public func isAudioFileValid(at url: URL) -> Bool {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path),
+              let attr = try? fm.attributesOfItem(atPath: url.path),
+              let size = attr[.size] as? Int64, size >= 100_000 else {
+            return false
+        }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        let header = handle.readData(ofLength: 16)
+        handle.closeFile()
+        guard header.count >= 4 else { return false }
+
+        // Valid MP3: starts with ID3 ('I', 'D', '3')
+        if header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33 {
+            return true
+        }
+        // Valid MP3: MPEG sync bits (11 bits set: 0xFF, 0xEx or 0xFx)
+        if header[0] == 0xFF && (header[1] & 0xE0) == 0xE0 {
+            return true
+        }
+        // Valid M4A / MP4 / AAC: [4 bytes size] 'ftyp'
+        if header.count >= 8 && header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70 {
+            return true
+        }
+        // Anything else (styp, msdh, HTML, JSON, error) -> INVALID
+        return false
+    }
+
     private func cleanupCorruptedFiles() {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: tracksFolder, includingPropertiesForKeys: [.fileSizeKey]) else { return }
-        for file in files where file.pathExtension.lowercased() == "mp3" {
-            var isCorrupted = false
-            if let values = try? file.resourceValues(forKeys: [.fileSizeKey]),
-               let size = values.fileSize {
-                if size < 100_000 {
-                    isCorrupted = true
-                } else if let handle = try? FileHandle(forReadingFrom: file) {
-                    let header = handle.readData(ofLength: 512)
-                    handle.closeFile()
-                    if let text = String(data: header, encoding: .utf8)?.lowercased() {
-                        if text.contains("<!doctype") || text.contains("<html") || text.contains("{\"error\"") || text.contains("#extm3u") {
-                            isCorrupted = true
-                        }
+        guard let items = try? fm.contentsOfDirectory(at: tracksFolder, includingPropertiesForKeys: [.fileSizeKey]) else { return }
+        for item in items {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: item.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    // Local HLS package folder: check if playlist.m3u8 exists
+                    let playlist = item.appendingPathComponent("playlist.m3u8")
+                    if !fm.fileExists(atPath: playlist.path) {
+                        try? fm.removeItem(at: item)
+                    }
+                } else if item.pathExtension.lowercased() == "mp3" {
+                    // Single MP3 file: check header validity
+                    if !isAudioFileValid(at: item) {
+                        try? fm.removeItem(at: item)
                     }
                 }
-            }
-            if isCorrupted {
-                try? fm.removeItem(at: file)
             }
         }
     }
@@ -147,16 +172,18 @@ public final class OfflineMusicManager {
               let index = try? JSONDecoder().decode(OfflineIndex.self, from: data) else {
             return
         }
-        // Verify audio file actually exists on disk and is a valid audio file (>= 100KB)
+        // Verify audio file or HLS package actually exists on disk
         let fm = FileManager.default
         let verifiedTracks = index.tracks.filter { track in
-            let path = trackFilePath(for: track.id).path
-            guard fm.fileExists(atPath: path),
-                  let attr = try? fm.attributesOfItem(atPath: path),
-                  let size = attr[.size] as? Int64, size >= 100_000 else {
-                return false
+            let singleFile = trackFilePath(for: track.id)
+            let hlsPlaylist = hlsPlaylistPath(for: track.id)
+            if fm.fileExists(atPath: singleFile.path) && isAudioFileValid(at: singleFile) {
+                return true
             }
-            return true
+            if fm.fileExists(atPath: hlsPlaylist.path) {
+                return true
+            }
+            return false
         }
 
         self.downloadedTracks = verifiedTracks
@@ -213,6 +240,15 @@ public final class OfflineMusicManager {
         return tracksFolder.appendingPathComponent("\(safeId).mp3")
     }
 
+    public func hlsFolderPath(for trackId: String) -> URL {
+        let safeId = sanitizeId(trackId)
+        return tracksFolder.appendingPathComponent(safeId, isDirectory: true)
+    }
+
+    public func hlsPlaylistPath(for trackId: String) -> URL {
+        return hlsFolderPath(for: trackId).appendingPathComponent("playlist.m3u8")
+    }
+
     public func coverFilePath(for trackId: String) -> URL {
         let safeId = sanitizeId(trackId)
         return coversFolder.appendingPathComponent("\(safeId).jpg")
@@ -235,13 +271,11 @@ public final class OfflineMusicManager {
     // MARK: - Query Status
 
     public func isTrackDownloaded(_ trackId: String) -> Bool {
-        let path = trackFilePath(for: trackId).path
-        guard FileManager.default.fileExists(atPath: path),
-              let attr = try? FileManager.default.attributesOfItem(atPath: path),
-              let size = attr[.size] as? Int64, size >= 100_000 else {
-            return false
-        }
-        return downloadedTracks.contains(where: { $0.id == trackId })
+        let singleFile = trackFilePath(for: trackId)
+        let hlsPlaylist = hlsPlaylistPath(for: trackId)
+        let fileExists = (FileManager.default.fileExists(atPath: singleFile.path) && isAudioFileValid(at: singleFile))
+            || FileManager.default.fileExists(atPath: hlsPlaylist.path)
+        return fileExists && downloadedTracks.contains(where: { $0.id == trackId })
     }
 
     public func isReleaseDownloaded(_ releaseId: String) -> Bool {
@@ -269,11 +303,13 @@ public final class OfflineMusicManager {
 
     public func localAudioFileUrl(for trackId: String) -> URL? {
         guard isTrackDownloaded(trackId) else { return nil }
-        let url = trackFilePath(for: trackId)
-        if FileManager.default.fileExists(atPath: url.path),
-           let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
-           let size = attr[.size] as? Int64, size >= 100_000 {
-            return url
+        let singleFile = trackFilePath(for: trackId)
+        if FileManager.default.fileExists(atPath: singleFile.path), isAudioFileValid(at: singleFile) {
+            return singleFile
+        }
+        let hlsPlaylist = hlsPlaylistPath(for: trackId)
+        if FileManager.default.fileExists(atPath: hlsPlaylist.path) {
+            return hlsPlaylist
         }
         return nil
     }
@@ -327,11 +363,15 @@ public final class OfflineMusicManager {
         downloadProgressMap[trackId] = 0.20
 
         // 2. Download Audio Stream
-        let destUrl = trackFilePath(for: trackId)
+        let isHls = resolved.isHls
         let downloadSuccess: Bool
-        if resolved.isHls {
-            downloadSuccess = await downloadHlsStream(m3u8UrlString: resolved.url, destinationUrl: destUrl, trackId: trackId)
+        let destUrl: URL
+        if isHls {
+            let hlsFolder = hlsFolderPath(for: trackId)
+            destUrl = hlsPlaylistPath(for: trackId)
+            downloadSuccess = await downloadHlsStream(m3u8UrlString: resolved.url, destinationFolder: hlsFolder, trackId: trackId)
         } else {
+            destUrl = trackFilePath(for: trackId)
             downloadSuccess = await downloadProgressiveFile(urlString: resolved.url, destinationUrl: destUrl, trackId: trackId)
         }
 
@@ -412,7 +452,7 @@ public final class OfflineMusicManager {
         }
     }
 
-    private func downloadHlsStream(m3u8UrlString: String, destinationUrl: URL, trackId: String) async -> Bool {
+    private func downloadHlsStream(m3u8UrlString: String, destinationFolder: URL, trackId: String) async -> Bool {
         guard let m3u8Url = URL(string: m3u8UrlString) else { return false }
         let session = SoundCloudProxyManager.shared.session(for: AudioPlayerManager.shared.settings)
         do {
@@ -422,55 +462,94 @@ public final class OfflineMusicManager {
             guard let playlistText = String(data: data, encoding: .utf8) else { return false }
 
             let lines = playlistText.components(separatedBy: .newlines)
-            var segmentUrls: [URL] = []
             let baseUrl = m3u8Url.deletingLastPathComponent()
+
+            let fm = FileManager.default
+            try? fm.removeItem(at: destinationFolder)
+            try fm.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+
+            var localPlaylistLines: [String] = []
+            var segmentJobs: [(remoteUrl: URL, localFilename: String)] = []
+            var segCounter = 0
 
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
-                if let fullUrl = URL(string: trimmed, relativeTo: baseUrl)?.absoluteURL {
-                    segmentUrls.append(fullUrl)
-                }
-            }
+                guard !trimmed.isEmpty else { continue }
 
-            guard !segmentUrls.isEmpty else { return false }
-
-            // Download audio segments concurrently in parallel batches (6 workers)
-            var assembledChunks: [Data?] = Array(repeating: nil, count: segmentUrls.count)
-            let concurrency = 6
-
-            for batchIndices in stride(from: 0, to: segmentUrls.count, by: concurrency).map({
-                Array($0..<min($0 + concurrency, segmentUrls.count))
-            }) {
-                await withTaskGroup(of: (Int, Data?).self) { group in
-                    for idx in batchIndices {
-                        let segUrl = segmentUrls[idx]
-                        group.addTask {
-                            var segReq = URLRequest(url: segUrl)
-                            segReq.timeoutInterval = 20
-                            if let (segData, resp) = try? await session.data(for: segReq),
-                               let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) {
-                                return (idx, segData)
+                // Check for #EXT-X-MAP:URI="init.mp4" (Crucial for CMAF fragmented MP4 audio!)
+                if trimmed.hasPrefix("#EXT-X-MAP:") {
+                    if let uriRange = trimmed.range(of: "URI=\"") {
+                        let afterUri = trimmed[uriRange.upperBound...]
+                        if let quoteEnd = afterUri.firstIndex(of: "\"") {
+                            let rawUri = String(afterUri[..<quoteEnd])
+                            if let fullMapUrl = URL(string: rawUri, relativeTo: baseUrl)?.absoluteURL {
+                                let initFilename = "init.mp4"
+                                segmentJobs.append((fullMapUrl, initFilename))
+                                localPlaylistLines.append("#EXT-X-MAP:URI=\"\(initFilename)\"")
+                                continue
                             }
-                            return (idx, nil)
                         }
                     }
-                    for await (idx, segData) in group {
-                        assembledChunks[idx] = segData
+                }
+
+                if trimmed.hasPrefix("#") {
+                    localPlaylistLines.append(trimmed)
+                } else {
+                    // Audio segment URL
+                    if let fullSegUrl = URL(string: trimmed, relativeTo: baseUrl)?.absoluteURL {
+                        let segExt = fullSegUrl.pathExtension.isEmpty ? "mp4" : fullSegUrl.pathExtension
+                        let segFilename = "seg_\(segCounter).\(segExt)"
+                        segCounter += 1
+                        segmentJobs.append((fullSegUrl, segFilename))
+                        localPlaylistLines.append(segFilename)
                     }
                 }
             }
 
-            // Verify all segments were successfully downloaded
-            var assembledData = Data()
-            for chunk in assembledChunks {
-                guard let chunk, !chunk.isEmpty else { return false }
-                assembledData.append(chunk)
+            guard !segmentJobs.isEmpty else { return false }
+
+            // Ensure #EXT-X-ENDLIST is present so AVPlayer treats it as a completed offline VOD asset
+            if !localPlaylistLines.contains("#EXT-X-ENDLIST") {
+                localPlaylistLines.append("#EXT-X-ENDLIST")
             }
 
-            guard assembledData.count >= 100_000 else { return false }
-            try? FileManager.default.removeItem(at: destinationUrl)
-            try assembledData.write(to: destinationUrl, options: .atomic)
+            // Download all segments (including init segment) concurrently
+            let concurrency = 6
+            var allSucceeded = true
+
+            for batch in stride(from: 0, to: segmentJobs.count, by: concurrency).map({
+                Array(segmentJobs[$0..<min($0 + concurrency, segmentJobs.count)])
+            }) {
+                await withTaskGroup(of: Bool.self) { group in
+                    for job in batch {
+                        group.addTask {
+                            var segReq = URLRequest(url: job.remoteUrl)
+                            segReq.timeoutInterval = 20
+                            guard let (segData, resp) = try? await session.data(for: segReq),
+                                  let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                                  !segData.isEmpty else {
+                                return false
+                            }
+                            let destFile = destinationFolder.appendingPathComponent(job.localFilename)
+                            try? segData.write(to: destFile, options: .atomic)
+                            return true
+                        }
+                    }
+                    for await success in group {
+                        if !success { allSucceeded = false }
+                    }
+                }
+            }
+
+            guard allSucceeded else {
+                try? fm.removeItem(at: destinationFolder)
+                return false
+            }
+
+            // Write local playlist.m3u8
+            let localPlaylistText = localPlaylistLines.joined(separator: "\n")
+            let playlistFile = destinationFolder.appendingPathComponent("playlist.m3u8")
+            try localPlaylistText.write(to: playlistFile, atomically: true, encoding: .utf8)
             return true
         } catch {
             return false
@@ -628,6 +707,7 @@ public final class OfflineMusicManager {
     public func deleteTrack(id: String) {
         let fm = FileManager.default
         try? fm.removeItem(at: trackFilePath(for: id))
+        try? fm.removeItem(at: hlsFolderPath(for: id))
         try? fm.removeItem(at: coverFilePath(for: id))
         try? fm.removeItem(at: lyricsFilePath(for: id))
         try? fm.removeItem(at: metadataFilePath(for: id))
