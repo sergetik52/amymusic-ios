@@ -232,7 +232,7 @@ public struct FullPlayerOverlayView: View {
                     if stageMode == .song {
                         Spacer(minLength: 6)
 
-                        AmyAsyncImage(url: URL(string: track?.coverUrl ?? "")) { img in
+                        AmyAsyncImage(url: track?.effectiveCoverUrl) { img in
                             img.resizable().scaledToFill()
                         } placeholder: {
                             LinearGradient(
@@ -1302,7 +1302,7 @@ public struct QueueBottomSheetView: View {
                     if let current = player.currentTrack {
                         Section("Сейчас играет") {
                             HStack(spacing: 12) {
-                                AmyAsyncImage(url: URL(string: current.coverUrl ?? "")) { img in
+                                AmyAsyncImage(url: current.effectiveCoverUrl) { img in
                                     img.resizable().scaledToFill()
                                 } placeholder: {
                                     Color.white.opacity(0.12)
@@ -1341,7 +1341,7 @@ public struct QueueBottomSheetView: View {
                                     player.playTrack(track)
                                 } label: {
                                     HStack(spacing: 12) {
-                                        AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+                                        AmyAsyncImage(url: track.effectiveCoverUrl) { img in
                                             img.resizable().scaledToFill()
                                         } placeholder: {
                                             Color.white.opacity(0.10)

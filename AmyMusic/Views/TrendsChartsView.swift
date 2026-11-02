@@ -293,7 +293,7 @@ public struct TrackRowItemView: View {
     public var body: some View {
         Button(action: onTap) {
             HStack(spacing: compact ? 9 : 12) {
-                AmyAsyncImage(url: URL(string: track.coverUrl ?? "")) { img in
+                AmyAsyncImage(url: track.effectiveCoverUrl) { img in
                     img.resizable().scaledToFill()
                 } placeholder: {
                     Color.white.opacity(0.12)

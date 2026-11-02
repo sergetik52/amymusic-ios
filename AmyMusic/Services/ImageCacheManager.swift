@@ -37,6 +37,14 @@ public final class ImageCacheManager: @unchecked Sendable {
             return cached
         }
 
+        if url.isFileURL {
+            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+                memoryCache.setObject(img, forKey: url as NSURL, cost: data.count)
+                return img
+            }
+            return nil
+        }
+
         do {
             let session = SoundCloudProxyManager.shared.currentSession()
             var request = URLRequest(url: url)
