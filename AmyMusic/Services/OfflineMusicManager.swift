@@ -114,18 +114,49 @@ public final class OfflineMusicManager {
         }
     }
 
-    // MARK: - Index Persistence
+    // MARK: - Index Persistence & Integrity Check
+
+    private func cleanupCorruptedFiles() {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: tracksFolder, includingPropertiesForKeys: [.fileSizeKey]) else { return }
+        for file in files where file.pathExtension.lowercased() == "mp3" {
+            var isCorrupted = false
+            if let values = try? file.resourceValues(forKeys: [.fileSizeKey]),
+               let size = values.fileSize {
+                if size < 100_000 {
+                    isCorrupted = true
+                } else if let handle = try? FileHandle(forReadingFrom: file) {
+                    let header = handle.readData(ofLength: 512)
+                    handle.closeFile()
+                    if let text = String(data: header, encoding: .utf8)?.lowercased() {
+                        if text.contains("<!doctype") || text.contains("<html") || text.contains("{\"error\"") || text.contains("#extm3u") {
+                            isCorrupted = true
+                        }
+                    }
+                }
+            }
+            if isCorrupted {
+                try? fm.removeItem(at: file)
+            }
+        }
+    }
 
     private func loadIndex() {
+        cleanupCorruptedFiles()
         guard let data = try? Data(contentsOf: indexFile),
               let index = try? JSONDecoder().decode(OfflineIndex.self, from: data) else {
             return
         }
-        // Verify audio file actually exists on disk for each track
+        // Verify audio file actually exists on disk and is a valid audio file (>= 100KB)
         let fm = FileManager.default
         let verifiedTracks = index.tracks.filter { track in
             let path = trackFilePath(for: track.id).path
-            return fm.fileExists(atPath: path)
+            guard fm.fileExists(atPath: path),
+                  let attr = try? fm.attributesOfItem(atPath: path),
+                  let size = attr[.size] as? Int64, size >= 100_000 else {
+                return false
+            }
+            return true
         }
 
         self.downloadedTracks = verifiedTracks
@@ -205,7 +236,12 @@ public final class OfflineMusicManager {
 
     public func isTrackDownloaded(_ trackId: String) -> Bool {
         let path = trackFilePath(for: trackId).path
-        return FileManager.default.fileExists(atPath: path) && downloadedTracks.contains(where: { $0.id == trackId })
+        guard FileManager.default.fileExists(atPath: path),
+              let attr = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attr[.size] as? Int64, size >= 100_000 else {
+            return false
+        }
+        return downloadedTracks.contains(where: { $0.id == trackId })
     }
 
     public func isReleaseDownloaded(_ releaseId: String) -> Bool {
@@ -232,8 +268,11 @@ public final class OfflineMusicManager {
     }
 
     public func localAudioFileUrl(for trackId: String) -> URL? {
+        guard isTrackDownloaded(trackId) else { return nil }
         let url = trackFilePath(for: trackId)
-        if FileManager.default.fileExists(atPath: url.path) {
+        if FileManager.default.fileExists(atPath: url.path),
+           let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attr[.size] as? Int64, size >= 100_000 {
             return url
         }
         return nil
@@ -269,7 +308,7 @@ public final class OfflineMusicManager {
             }
         }
 
-        // 1. Resolve Audio Stream URL
+        // 1. Resolve Audio Stream URL (prefers progressive MP3 for instant native download)
         var targetTrack = track
         if targetTrack.source == .yandex {
             if let bridged = await YandexMusicService.shared.resolvePlayableSoundCloudTrack(for: targetTrack) {
@@ -281,7 +320,7 @@ public final class OfflineMusicManager {
             }
         }
 
-        guard let resolved = await SoundCloudService.shared.resolveStreamUrl(for: targetTrack) else {
+        guard let resolved = await SoundCloudService.shared.resolveDownloadStreamUrl(for: targetTrack) else {
             return false
         }
 
@@ -297,24 +336,26 @@ public final class OfflineMusicManager {
         }
 
         guard downloadSuccess else { return false }
-        downloadProgressMap[trackId] = 0.85
+        downloadProgressMap[trackId] = 0.90
 
-        // 3. Cache Cover Artwork locally
-        if let coverUrlStr = track.coverUrl, let coverUrl = URL(string: coverUrlStr) {
-            let coverDest = coverFilePath(for: trackId)
-            if let (tempCover, _) = try? await URLSession.shared.download(from: coverUrl) {
-                try? FileManager.default.removeItem(at: coverDest)
-                try? FileManager.default.moveItem(at: tempCover, to: coverDest)
+        // 3. Cache Cover Artwork & Lyrics concurrently in background (non-blocking)
+        Task(priority: .background) { [weak self] in
+            guard let self else { return }
+            if let coverUrlStr = track.coverUrl, let coverUrl = URL(string: coverUrlStr) {
+                let coverDest = self.coverFilePath(for: trackId)
+                let session = SoundCloudProxyManager.shared.session(for: AudioPlayerManager.shared.settings)
+                if let (tempCover, _) = try? await session.download(from: coverUrl) {
+                    try? FileManager.default.removeItem(at: coverDest)
+                    try? FileManager.default.moveItem(at: tempCover, to: coverDest)
+                }
+            }
+            let lyrics = await LyricsService.shared.fetchLyrics(for: track)
+            if lyrics.status != .empty, let lyricsData = try? JSONEncoder().encode(lyrics) {
+                try? lyricsData.write(to: self.lyricsFilePath(for: trackId), options: .atomic)
             }
         }
 
-        // 4. Download & Cache Lyrics locally
-        let lyrics = await LyricsService.shared.fetchLyrics(for: track)
-        if lyrics.status != .empty, let lyricsData = try? JSONEncoder().encode(lyrics) {
-            try? lyricsData.write(to: lyricsFilePath(for: trackId), options: .atomic)
-        }
-
-        // 5. Save Track Metadata JSON
+        // 4. Save Track Metadata JSON
         var localTrack = track
         localTrack.streamUrl = destUrl.absoluteString
         localTrack.fetchedAt = Date()
@@ -322,7 +363,7 @@ public final class OfflineMusicManager {
             try? metaData.write(to: metadataFilePath(for: trackId), options: .atomic)
         }
 
-        // 6. Update Registry
+        // 5. Update Registry
         if !downloadedTracks.contains(where: { $0.id == track.id }) {
             downloadedTracks.insert(localTrack, at: 0)
         }
@@ -335,10 +376,34 @@ public final class OfflineMusicManager {
     private func downloadProgressiveFile(urlString: String, destinationUrl: URL, trackId: String) async -> Bool {
         guard let url = URL(string: urlString) else { return false }
         do {
-            let (tempUrl, response) = try await URLSession.shared.download(from: url)
-            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+            let session = SoundCloudProxyManager.shared.session(for: AudioPlayerManager.shared.settings)
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 30
+            let (tempUrl, response) = try await session.download(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                try? FileManager.default.removeItem(at: tempUrl)
                 return false
             }
+
+            // Validate file size: audio file must be >= 100KB
+            let attr = try FileManager.default.attributesOfItem(atPath: tempUrl.path)
+            guard let size = attr[.size] as? Int64, size >= 100_000 else {
+                try? FileManager.default.removeItem(at: tempUrl)
+                return false
+            }
+
+            // Validate file header: must NOT be HTML block page or error JSON or HLS playlist
+            if let handle = try? FileHandle(forReadingFrom: tempUrl) {
+                let header = handle.readData(ofLength: 512)
+                handle.closeFile()
+                if let str = String(data: header, encoding: .utf8)?.lowercased() {
+                    if str.contains("<!doctype") || str.contains("<html") || str.contains("{\"error\"") || str.contains("#extm3u") {
+                        try? FileManager.default.removeItem(at: tempUrl)
+                        return false
+                    }
+                }
+            }
+
             try? FileManager.default.removeItem(at: destinationUrl)
             try FileManager.default.moveItem(at: tempUrl, to: destinationUrl)
             return true
@@ -349,8 +414,11 @@ public final class OfflineMusicManager {
 
     private func downloadHlsStream(m3u8UrlString: String, destinationUrl: URL, trackId: String) async -> Bool {
         guard let m3u8Url = URL(string: m3u8UrlString) else { return false }
+        let session = SoundCloudProxyManager.shared.session(for: AudioPlayerManager.shared.settings)
         do {
-            let (data, _) = try await URLSession.shared.data(from: m3u8Url)
+            var m3u8Req = URLRequest(url: m3u8Url)
+            m3u8Req.timeoutInterval = 15
+            let (data, _) = try await session.data(for: m3u8Req)
             guard let playlistText = String(data: data, encoding: .utf8) else { return false }
 
             let lines = playlistText.components(separatedBy: .newlines)
@@ -367,21 +435,82 @@ public final class OfflineMusicManager {
 
             guard !segmentUrls.isEmpty else { return false }
 
-            // Download each audio segment and concatenate into one contiguous file
-            var assembledData = Data()
-            for (idx, segUrl) in segmentUrls.enumerated() {
-                let (segData, _) = try await URLSession.shared.data(from: segUrl)
-                assembledData.append(segData)
-                let p = 0.20 + (0.65 * (Double(idx + 1) / Double(segmentUrls.count)))
-                downloadProgressMap[trackId] = p
+            // Download audio segments concurrently in parallel batches (6 workers)
+            var assembledChunks: [Data?] = Array(repeating: nil, count: segmentUrls.count)
+            let concurrency = 6
+
+            for batchIndices in stride(from: 0, to: segmentUrls.count, by: concurrency).map({
+                Array($0..<min($0 + concurrency, segmentUrls.count))
+            }) {
+                await withTaskGroup(of: (Int, Data?).self) { group in
+                    for idx in batchIndices {
+                        let segUrl = segmentUrls[idx]
+                        group.addTask {
+                            var segReq = URLRequest(url: segUrl)
+                            segReq.timeoutInterval = 20
+                            if let (segData, resp) = try? await session.data(for: segReq),
+                               let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                                return (idx, segData)
+                            }
+                            return (idx, nil)
+                        }
+                    }
+                    for await (idx, segData) in group {
+                        assembledChunks[idx] = segData
+                    }
+                }
             }
 
-            guard !assembledData.isEmpty else { return false }
+            // Verify all segments were successfully downloaded
+            var assembledData = Data()
+            for chunk in assembledChunks {
+                guard let chunk, !chunk.isEmpty else { return false }
+                assembledData.append(chunk)
+            }
+
+            guard assembledData.count >= 100_000 else { return false }
             try? FileManager.default.removeItem(at: destinationUrl)
             try assembledData.write(to: destinationUrl, options: .atomic)
             return true
         } catch {
             return false
+        }
+    }
+
+    // MARK: - Fast Parallel Batch Downloader (3 Concurrent Workers)
+
+    private func downloadTracksBatch(
+        tracks: [Track],
+        parentId: String,
+        parentTitle: String,
+        concurrency: Int = 3
+    ) async {
+        let total = tracks.count
+        guard total > 0 else { return }
+
+        // Filter out already downloaded tracks
+        let remaining = tracks.filter { !isTrackDownloaded($0.id) }
+        var completedCount = total - remaining.count
+        downloadProgressMap[parentId] = Double(completedCount) / Double(total)
+
+        guard !remaining.isEmpty else { return }
+
+        // Process in concurrent batches of `concurrency` (3 simultaneous downloads)
+        for chunk in stride(from: 0, to: remaining.count, by: concurrency).map({
+            Array(remaining[$0..<min($0 + concurrency, remaining.count)])
+        }) {
+            await withTaskGroup(of: Bool.self) { group in
+                for track in chunk {
+                    group.addTask {
+                        await OfflineMusicManager.shared.downloadTrack(track)
+                    }
+                }
+                for await _ in group {
+                    completedCount += 1
+                    self.currentDownloadSubtitle = "\(parentTitle) • \(completedCount) из \(total)"
+                    self.downloadProgressMap[parentId] = Double(completedCount) / Double(total)
+                }
+            }
         }
     }
 
@@ -404,14 +533,10 @@ public final class OfflineMusicManager {
             }
         }
 
-        let total = release.tracks.count
-        guard total > 0 else { return }
+        let tracks = release.tracks
+        guard !tracks.isEmpty else { return }
 
-        for (index, track) in release.tracks.enumerated() {
-            currentDownloadSubtitle = "\(release.artist) • \(index + 1) из \(total)"
-            downloadProgressMap[releaseId] = Double(index) / Double(total)
-            await downloadTrack(track)
-        }
+        await downloadTracksBatch(tracks: tracks, parentId: releaseId, parentTitle: release.title, concurrency: 3)
 
         // Register in downloaded releases
         if release.kind == .album || release.kind == .single {
@@ -479,11 +604,7 @@ public final class OfflineMusicManager {
         let total = uniqueTracks.count
         guard total > 0 else { return }
 
-        for (idx, track) in uniqueTracks.enumerated() {
-            currentDownloadSubtitle = "\(name) • \(idx + 1) из \(total)"
-            downloadProgressMap[artistId] = Double(idx) / Double(total)
-            await downloadTrack(track)
-        }
+        await downloadTracksBatch(tracks: uniqueTracks, parentId: artistId, parentTitle: name, concurrency: 3)
 
         let summary = DownloadedArtistSummary(
             id: artistId,

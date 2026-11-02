@@ -235,6 +235,19 @@ public final class AudioPlayerManager {
             }
         }
 
+        Task { @MainActor [weak self] in
+            for await note in NotificationCenter.default.notifications(named: .AVPlayerItemFailedToPlayToEndTime) {
+                guard let self,
+                      let failedItem = note.object as? AVPlayerItem,
+                      let track = self.currentTrack else { continue }
+                if let asset = failedItem.asset as? AVURLAsset, asset.url.isFileURL {
+                    print("[AudioPlayerManager] Playback failed for offline item \(track.title). Purging corrupted file.")
+                    OfflineMusicManager.shared.deleteTrack(id: track.id)
+                    self.loadAndStartTrack(track, useCrossfade: false, skipOffline: true)
+                }
+            }
+        }
+
         // Inter-process Darwin notification listener from Dynamic Island & Live Activity & Home/Lock Screen Widgets
         let notifyCenter = CFNotificationCenterGetDarwinNotifyCenter()
         let observer = Unmanaged.passUnretained(self).toOpaque()
@@ -576,7 +589,7 @@ public final class AudioPlayerManager {
         updateNowPlayingInfo()
     }
 
-    private func loadAndStartTrack(_ track: Track, useCrossfade: Bool) {
+    private func loadAndStartTrack(_ track: Track, useCrossfade: Bool, skipOffline: Bool = false) {
         trackLoadTask?.cancel()
         if !useCrossfade {
             crossfadeTask?.cancel()
@@ -617,7 +630,7 @@ public final class AudioPlayerManager {
         }
 
         trackLoadTask = Task {
-            guard let streamUrl = await resolvePlayableUrl(for: track) else {
+            guard let streamUrl = await resolvePlayableUrl(for: track, skipOffline: skipOffline) else {
                 guard !Task.isCancelled else { return }
                 self.isLoading = false
                 // Automatically skip unresolvable track
@@ -629,6 +642,12 @@ public final class AudioPlayerManager {
             let asset: AVURLAsset
             if streamUrl.isFileURL {
                 asset = AVURLAsset(url: streamUrl)
+                if !asset.isPlayable {
+                    print("[AudioPlayerManager] Local file for \(track.title) is corrupted/unplayable. Purging and streaming.")
+                    OfflineMusicManager.shared.deleteTrack(id: track.id)
+                    self.loadAndStartTrack(track, useCrossfade: false, skipOffline: true)
+                    return
+                }
             } else if let proxyConfig = SoundCloudProxyManager.shared.getActiveProxyConfig(settings: self.settings),
                proxyConfig.isForwardProxy,
                !track.isHls {
@@ -730,9 +749,9 @@ public final class AudioPlayerManager {
         }
     }
 
-    private func resolvePlayableUrl(for track: Track) async -> URL? {
+    private func resolvePlayableUrl(for track: Track, skipOffline: Bool = false) async -> URL? {
         // 1. Check if track is saved locally in OfflineMusic storage (Instant zero-buffer offline playback)
-        if let offlineUrl = OfflineMusicManager.shared.localAudioFileUrl(for: track.id) {
+        if !skipOffline, let offlineUrl = OfflineMusicManager.shared.localAudioFileUrl(for: track.id) {
             return offlineUrl
         }
 

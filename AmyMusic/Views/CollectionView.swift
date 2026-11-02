@@ -66,71 +66,6 @@ public struct CollectionView: View {
                     .padding(.top, 18)
                     .padding(.horizontal, 16)
 
-                    // MARK: - Dedicated "Скачанная музыка ⬇️" Card
-                    Button {
-                        isOfflineLibraryOpen = true
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color(hex: "#34C759").opacity(0.85), Color(hex: "#30B0C7").opacity(0.75)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 52, height: 52)
-                                    .shadow(color: Color(hex: "#34C759").opacity(0.35), radius: 10, y: 4)
-
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 26, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Скачанная музыка")
-                                    .font(.system(size: 17, weight: .black))
-                                    .foregroundStyle(.white)
-
-                                let offlineManager = OfflineMusicManager.shared
-                                let tracksCount = offlineManager.downloadedTracks.count
-                                if tracksCount > 0 {
-                                    Text("\(tracksCount) треков • \(offlineManager.totalStorageFormatted)")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(.white.opacity(0.65))
-                                } else {
-                                    Text("Слушайте треки без интернета")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(.white.opacity(0.50))
-                                }
-                            }
-
-                            Spacer()
-
-                            HStack(spacing: 8) {
-                                if OfflineMusicManager.shared.currentDownloadTitle != nil {
-                                    ProgressView()
-                                        .tint(.white)
-                                        .scaleEffect(0.8)
-                                }
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.35))
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 16)
 
                     // "Мне нравится" Horizontal Snap Pager (Pages of 5 tracks, matching CollectionView.jsx mobile)
                     if !player.likedTracks.isEmpty {
@@ -299,6 +234,73 @@ public struct CollectionView: View {
                             }
                         }
                     }
+
+                    // MARK: - Dedicated "Скачанная музыка ⬇️" Card (At the very bottom)
+                    Button {
+                        isOfflineLibraryOpen = true
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color(hex: "#34C759").opacity(0.85), Color(hex: "#30B0C7").opacity(0.75)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 52, height: 52)
+                                    .shadow(color: Color(hex: "#34C759").opacity(0.35), radius: 10, y: 4)
+
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Скачанная музыка")
+                                    .font(.system(size: 17, weight: .black))
+                                    .foregroundStyle(.white)
+
+                                let offlineManager = OfflineMusicManager.shared
+                                let tracksCount = offlineManager.downloadedTracks.count
+                                if tracksCount > 0 {
+                                    Text("\(tracksCount) треков • \(offlineManager.totalStorageFormatted)")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.65))
+                                } else {
+                                    Text("Слушайте треки без интернета")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.50))
+                                }
+                            }
+
+                            Spacer()
+
+                            HStack(spacing: 8) {
+                                if OfflineMusicManager.shared.currentDownloadTitle != nil {
+                                    ProgressView()
+                                        .tint(.white)
+                                        .scaleEffect(0.8)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.35))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
 
                     Spacer(minLength: 24)
                 }

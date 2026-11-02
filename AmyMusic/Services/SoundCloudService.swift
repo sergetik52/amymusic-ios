@@ -211,6 +211,43 @@ public actor SoundCloudService {
         return nil
     }
 
+    // MARK: - Dedicated Fast Download Stream Resolution (Strictly Prefers Progressive MP3)
+
+    public func resolveDownloadStreamUrl(for track: Track) async -> (url: String, isHls: Bool)? {
+        let cleanId = track.rawId.replacingOccurrences(of: "sc_", with: "")
+
+        // 1. Fetch fresh track info to extract progressive transcoding directly
+        if let json = try? await requestJSON(path: "/tracks/\(cleanId)") as? [String: Any],
+           let media = json["media"] as? [String: Any],
+           let transcodings = media["transcodings"] as? [[String: Any]] {
+
+            let nonSnipped = transcodings.filter { ($0["snipped"] as? Bool) != true }
+            let unencrypted = (nonSnipped.isEmpty ? transcodings : nonSnipped).filter { item in
+                let proto = ((item["format"] as? [String: Any])?["protocol"] as? String)?.lowercased() ?? ""
+                return !proto.contains("encrypted")
+            }
+
+            // Priority 1: Direct unencrypted progressive MP3 (1-file download, native AVPlayer compatibility)
+            if let prog = unencrypted.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased().contains("progressive") == true }),
+               let tUrl = prog["url"] as? String,
+               let streamUrl = await fetchTranscodingUrl(tUrl) {
+                let proxied = SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(streamUrl, settings: self.settings) ?? streamUrl
+                return (proxied, false)
+            }
+
+            // Priority 2: Unencrypted HLS
+            if let hls = unencrypted.first(where: { (($0["format"] as? [String: Any])?["protocol"] as? String)?.lowercased().contains("hls") == true }),
+               let tUrl = hls["url"] as? String,
+               let streamUrl = await fetchTranscodingUrl(tUrl) {
+                let proxied = SoundCloudProxyManager.shared.proxyMediaUrlIfNeeded(streamUrl, settings: self.settings) ?? streamUrl
+                return (proxied, true)
+            }
+        }
+
+        // Fallback to standard stream resolution
+        return await resolveStreamUrl(for: track, quality: .q320)
+    }
+
     private func fetchTranscodingUrl(_ transcodingUrl: String) async -> String? {
         do {
             let json = try await requestJSON(path: transcodingUrl)
