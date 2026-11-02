@@ -240,11 +240,7 @@ public final class AudioPlayerManager {
                 guard let self,
                       let failedItem = note.object as? AVPlayerItem,
                       let track = self.currentTrack else { continue }
-                if let asset = failedItem.asset as? AVURLAsset, asset.url.isFileURL {
-                    print("[AudioPlayerManager] Playback failed for offline item \(track.title). Purging corrupted file.")
-                    OfflineMusicManager.shared.deleteTrack(id: track.id)
-                    self.loadAndStartTrack(track, useCrossfade: false, skipOffline: true)
-                }
+                print("[AudioPlayerManager] Playback failed for \(track.title): \(String(describing: failedItem.error))")
             }
         }
 
@@ -642,12 +638,6 @@ public final class AudioPlayerManager {
             let asset: AVURLAsset
             if streamUrl.isFileURL {
                 asset = AVURLAsset(url: streamUrl)
-                if !asset.isPlayable {
-                    print("[AudioPlayerManager] Local file for \(track.title) is corrupted/unplayable. Purging and streaming.")
-                    OfflineMusicManager.shared.deleteTrack(id: track.id)
-                    self.loadAndStartTrack(track, useCrossfade: false, skipOffline: true)
-                    return
-                }
             } else if let proxyConfig = SoundCloudProxyManager.shared.getActiveProxyConfig(settings: self.settings),
                proxyConfig.isForwardProxy,
                !track.isHls {
