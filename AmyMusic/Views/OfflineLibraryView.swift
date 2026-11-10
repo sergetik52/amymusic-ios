@@ -21,6 +21,7 @@ public struct OfflineLibraryView: View {
     @State private var activeTab: OfflineLibraryTab = .tracks
     @State private var searchQuery: String = ""
     @State private var isClearAllAlertPresented: Bool = false
+    @State private var isRefreshing: Bool = false
     @State private var selectedArtistSummary: DownloadedArtistSummary? = nil
     @State private var selectedReleaseLocally: ReleaseItem? = nil
 
@@ -163,19 +164,45 @@ public struct OfflineLibraryView: View {
 
                 Spacer()
 
-                if !offlineManager.downloadedTracks.isEmpty {
-                    Button(role: .destructive) {
-                        isClearAllAlertPresented = true
+                HStack(spacing: 8) {
+                    Button {
+                        isRefreshing = true
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Task {
+                            await player.refreshAllCachedAndDownloadedTracks()
+                            isRefreshing = false
+                        }
                     } label: {
-                        Text("Очистить")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Color(hex: "#FF453A"))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(Color(hex: "#FF453A").opacity(0.12), in: Capsule())
-                            .overlay(Capsule().strokeBorder(Color(hex: "#FF453A").opacity(0.25), lineWidth: 1))
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                                .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                                .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+                            Text("Обновить")
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Color.white.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
+                    .disabled(isRefreshing)
+
+                    if !offlineManager.downloadedTracks.isEmpty {
+                        Button(role: .destructive) {
+                            isClearAllAlertPresented = true
+                        } label: {
+                            Text("Очистить")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(Color(hex: "#FF453A"))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .background(Color(hex: "#FF453A").opacity(0.12), in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color(hex: "#FF453A").opacity(0.25), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }

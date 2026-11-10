@@ -124,7 +124,7 @@ public final class OfflineMusicManager {
             return false
         }
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-        let header = handle.readData(ofLength: 16)
+        let header = handle.readData(ofLength: 64)
         handle.closeFile()
         guard header.count >= 4 else { return false }
 
@@ -140,8 +140,36 @@ public final class OfflineMusicManager {
         if header.count >= 8 && header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70 {
             return true
         }
-        // Anything else (styp, msdh, HTML, JSON, error) -> INVALID
-        return false
+        // Valid CMAF / fMP4 segment: [4 bytes size] 'styp', 'moov', 'moof', 'mdat'
+        if header.count >= 8 {
+            let tag = String(bytes: header[4...7], encoding: .ascii) ?? ""
+            if tag == "styp" || tag == "moov" || tag == "moof" || tag == "mdat" {
+                return true
+            }
+        }
+        // Valid MPEG-TS: starts with 0x47 sync byte
+        if header[0] == 0x47 {
+            return true
+        }
+        // Valid ADTS AAC: starts with 0xFF, 0xF1 or 0xFF, 0xF9
+        if header[0] == 0xFF && (header[1] & 0xF6) == 0xF0 {
+            return true
+        }
+        // Valid Ogg / Opus / Vorbis ('O', 'g', 'g', 'S')
+        if header[0] == 0x4F && header[1] == 0x47 && header[2] == 0x47 && header[3] == 0x53 {
+            return true
+        }
+        // Valid FLAC ('f', 'L', 'a', 'C')
+        if header[0] == 0x66 && header[1] == 0x4C && header[2] == 0x61 && header[3] == 0x43 {
+            return true
+        }
+
+        // Rejection check: ensure it is not an HTML block page or error JSON
+        let sample = String(data: header, encoding: .utf8)?.lowercased() ?? ""
+        if sample.contains("<html") || sample.contains("<!doc") || sample.contains("{\"err") || sample.contains("#extm3u") {
+            return false
+        }
+        return true
     }
 
     private func cleanupAndMigrateTracks() {
@@ -221,9 +249,17 @@ public final class OfflineMusicManager {
             }
         }
 
-        self.downloadedTracks = verifiedTracks
-        self.downloadedAlbums = index.albums
-        self.downloadedPlaylists = index.playlists
+        self.downloadedTracks = verifiedTracks.map { SoundCloudService.renormalizeTrackIfNeeded($0) }
+        self.downloadedAlbums = index.albums.map { alb in
+            var a = alb
+            a.tracks = alb.tracks.map { SoundCloudService.renormalizeTrackIfNeeded($0) }
+            return a
+        }
+        self.downloadedPlaylists = index.playlists.map { pl in
+            var p = pl
+            p.tracks = pl.tracks.map { SoundCloudService.renormalizeTrackIfNeeded($0) }
+            return p
+        }
         self.downloadedArtists = index.artists
     }
 
@@ -316,11 +352,7 @@ public final class OfflineMusicManager {
     // MARK: - Query Status
 
     public func isTrackDownloaded(_ trackId: String) -> Bool {
-        let m4a = m4aFilePath(for: trackId)
-        let mp3 = trackFilePath(for: trackId)
-        let hasValidFile = (FileManager.default.fileExists(atPath: m4a.path) && isAudioFileValid(at: m4a))
-            || (FileManager.default.fileExists(atPath: mp3.path) && isAudioFileValid(at: mp3))
-        return hasValidFile && downloadedTracks.contains(where: { $0.id == trackId })
+        return localAudioFileUrl(for: trackId) != nil
     }
 
     public func isReleaseDownloaded(_ releaseId: String) -> Bool {
@@ -347,7 +379,6 @@ public final class OfflineMusicManager {
     }
 
     public func localAudioFileUrl(for trackId: String) -> URL? {
-        guard isTrackDownloaded(trackId) else { return nil }
         let m4a = m4aFilePath(for: trackId)
         if FileManager.default.fileExists(atPath: m4a.path), isAudioFileValid(at: m4a) {
             return m4a
@@ -807,6 +838,67 @@ public final class OfflineMusicManager {
         }
         saveIndex()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    public func refreshAllOfflineTracks() async {
+        var trackDict: [String: Track] = [:]
+        for t in downloadedTracks { trackDict[t.id] = t }
+        for a in downloadedAlbums {
+            for t in a.tracks { trackDict[t.id] = t }
+        }
+        for p in downloadedPlaylists {
+            for t in p.tracks { trackDict[t.id] = t }
+        }
+
+        let fm = FileManager.default
+        if let metaFiles = try? fm.contentsOfDirectory(at: metadataFolder, includingPropertiesForKeys: nil) {
+            for metaFile in metaFiles where metaFile.pathExtension == "json" {
+                let trackId = metaFile.deletingPathExtension().lastPathComponent
+                if trackDict[trackId] == nil,
+                   let data = try? Data(contentsOf: metaFile),
+                   let tr = try? JSONDecoder().decode(Track.self, from: data) {
+                    trackDict[trackId] = tr
+                }
+            }
+        }
+
+        let rawIds = trackDict.values.map { $0.rawId.isEmpty ? $0.id.replacingOccurrences(of: "sc_", with: "") : $0.rawId }
+        let freshMap = await SoundCloudService.shared.fetchTracks(rawIds: rawIds)
+
+        for (id, oldTrack) in trackDict {
+            var updated = freshMap[oldTrack.rawId] ?? freshMap[id] ?? SoundCloudService.renormalizeTrackIfNeeded(oldTrack)
+            if let localUrl = localAudioFileUrl(for: id) {
+                updated.streamUrl = localUrl.absoluteString
+            } else {
+                updated.streamUrl = nil
+            }
+            trackDict[id] = updated
+
+            if let metaData = try? JSONEncoder().encode(updated) {
+                try? metaData.write(to: metadataFilePath(for: id), options: .atomic)
+            }
+        }
+
+        self.downloadedTracks = downloadedTracks.compactMap { trackDict[$0.id] ?? SoundCloudService.renormalizeTrackIfNeeded($0) }
+        self.downloadedAlbums = downloadedAlbums.map { alb in
+            var a = alb
+            a.tracks = alb.tracks.compactMap { trackDict[$0.id] ?? SoundCloudService.renormalizeTrackIfNeeded($0) }
+            return a
+        }
+        self.downloadedPlaylists = downloadedPlaylists.map { pl in
+            var p = pl
+            p.tracks = pl.tracks.compactMap { trackDict[$0.id] ?? SoundCloudService.renormalizeTrackIfNeeded($0) }
+            return p
+        }
+
+        // Re-download audio for any offline metadata item if its audio is missing
+        for (id, tr) in trackDict {
+            if localAudioFileUrl(for: id) == nil {
+                await downloadTrack(tr)
+            }
+        }
+
+        saveIndex()
     }
 
     public func deleteAll() {

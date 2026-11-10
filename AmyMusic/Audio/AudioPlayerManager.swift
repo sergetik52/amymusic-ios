@@ -126,6 +126,7 @@ public final class AudioPlayerManager {
             if !settings.spotifyAccessToken.isEmpty {
                 await loadSpotifyPlaylists()
             }
+            await refreshAllCachedAndDownloadedTracks()
         }
     }
 
@@ -1255,15 +1256,87 @@ public final class AudioPlayerManager {
               let blob = try? JSONDecoder().decode(PersistedBlob.self, from: data) else {
             return
         }
-        likedTracks = blob.likedTracks.map { SoundCloudService.renormalizeTrackIfNeeded($0) }
-        dislikedTracks = blob.dislikedTracks.map { SoundCloudService.renormalizeTrackIfNeeded($0) }
-        playHistory = blob.playHistory.map { SoundCloudService.renormalizeTrackIfNeeded($0) }
-        savedReleases = blob.savedReleases
-        userPlaylists = blob.userPlaylists
+
+        func sanitizeTrack(_ track: Track) -> Track {
+            var tr = SoundCloudService.renormalizeTrackIfNeeded(track)
+            if let stream = tr.streamUrl, stream.hasPrefix("file://") {
+                if OfflineMusicManager.shared.localAudioFileUrl(for: tr.id) == nil {
+                    tr.streamUrl = nil
+                }
+            }
+            return tr
+        }
+
+        likedTracks = blob.likedTracks.map { sanitizeTrack($0) }
+        dislikedTracks = blob.dislikedTracks.map { sanitizeTrack($0) }
+        playHistory = blob.playHistory.map { sanitizeTrack($0) }
+        savedReleases = blob.savedReleases.map { rel in
+            var r = rel
+            r.tracks = rel.tracks.map { sanitizeTrack($0) }
+            return r
+        }
+        userPlaylists = blob.userPlaylists.map { pl in
+            var p = pl
+            p.tracks = pl.tracks.map { sanitizeTrack($0) }
+            return p
+        }
         subscribedArtists = blob.subscribedArtists
         waveSeeds = blob.waveSeeds
         totalListenedSeconds = blob.totalListenedSeconds
         lyricsOffsetsMs = blob.lyricsOffsetsMs
+    }
+
+    public func refreshAllCachedAndDownloadedTracks() async {
+        var allIds = Set<String>()
+        for t in likedTracks { if !t.rawId.isEmpty { allIds.insert(t.rawId) } }
+        for t in playHistory { if !t.rawId.isEmpty { allIds.insert(t.rawId) } }
+        for rel in savedReleases {
+            for t in rel.tracks { if !t.rawId.isEmpty { allIds.insert(t.rawId) } }
+        }
+        for pl in userPlaylists {
+            for t in pl.tracks { if !t.rawId.isEmpty { allIds.insert(t.rawId) } }
+        }
+        if let current = currentTrack, !current.rawId.isEmpty {
+            allIds.insert(current.rawId)
+        }
+
+        let freshMap = await SoundCloudService.shared.fetchTracks(rawIds: Array(allIds))
+
+        func updateTrack(_ old: Track) -> Track {
+            var updated = freshMap[old.rawId] ?? freshMap[old.id] ?? SoundCloudService.renormalizeTrackIfNeeded(old)
+            if let localUrl = OfflineMusicManager.shared.localAudioFileUrl(for: old.id) {
+                updated.streamUrl = localUrl.absoluteString
+            } else if updated.streamUrl?.hasPrefix("file://") == true {
+                updated.streamUrl = nil
+            }
+            return updated
+        }
+
+        likedTracks = likedTracks.map { updateTrack($0) }
+        dislikedTracks = dislikedTracks.map { updateTrack($0) }
+        playHistory = playHistory.map { updateTrack($0) }
+        savedReleases = savedReleases.map { rel in
+            var r = rel
+            r.tracks = rel.tracks.map { updateTrack($0) }
+            return r
+        }
+        userPlaylists = userPlaylists.map { pl in
+            var p = pl
+            p.tracks = pl.tracks.map { updateTrack($0) }
+            return p
+        }
+        if let current = currentTrack {
+            currentTrack = updateTrack(current)
+        }
+        queue = queue.map { updateTrack($0) }
+
+        persistState()
+
+        for rel in savedReleases {
+            ReleaseCacheManager.shared.set(rel)
+        }
+
+        await OfflineMusicManager.shared.refreshAllOfflineTracks()
     }
 
     private func saveSettings() {

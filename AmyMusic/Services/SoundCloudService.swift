@@ -522,6 +522,28 @@ public actor SoundCloudService {
         return updated
     }
 
+    public func fetchTracks(rawIds: [String]) async -> [String: Track] {
+        var trackMap: [String: Track] = [:]
+        let cleanIds = Array(Set(rawIds.map { $0.replacingOccurrences(of: "sc_", with: "").trimmingCharacters(in: .whitespacesAndNewlines) })).filter { !$0.isEmpty }
+        guard !cleanIds.isEmpty else { return trackMap }
+
+        for chunkStart in stride(from: 0, to: cleanIds.count, by: 50) {
+            let chunk = Array(cleanIds[chunkStart..<min(chunkStart + 50, cleanIds.count)])
+            if let arr = try? await requestJSON(
+                path: "/tracks",
+                queryItems: [URLQueryItem(name: "ids", value: chunk.joined(separator: ","))]
+            ) as? [[String: Any]] {
+                for item in arr {
+                    if let t = normalizeTrack(item) {
+                        trackMap[t.rawId] = t
+                        trackMap[t.id] = t
+                    }
+                }
+            }
+        }
+        return trackMap
+    }
+
     // MARK: - Playlist / Release Link Importer
 
     public static func resolveRedirectUrl(_ urlString: String) async -> String {
@@ -1197,6 +1219,7 @@ public actor SoundCloudService {
         tr.rawTitle = cleaned.rawTitle
         tr.artist = cleaned.artistDisplay
         tr.artists = cleaned.artists
+        tr.uploaderId = tr.uploaderId ?? tr.artists.first?.id
         return tr
     }
 }
