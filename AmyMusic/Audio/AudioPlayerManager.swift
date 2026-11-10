@@ -479,7 +479,7 @@ public final class AudioPlayerManager {
         )
         AmyMusicSharedStore.shared.saveSnapshot(widgetSnapshot)
         #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         #endif
     }
 
@@ -1284,6 +1284,47 @@ public final class AudioPlayerManager {
         waveSeeds = blob.waveSeeds
         totalListenedSeconds = blob.totalListenedSeconds
         lyricsOffsetsMs = blob.lyricsOffsetsMs
+
+        if let initialTrack = playHistory.first ?? likedTracks.first {
+            var upNext: [WidgetQueueItem] = []
+            if playHistory.count > 1 {
+                upNext = playHistory.dropFirst().prefix(5).map {
+                    WidgetQueueItem(id: $0.id, title: $0.title, artist: $0.artist, duration: $0.duration)
+                }
+            }
+            let initialSnapshot = AmyMusicWidgetSnapshot(
+                title: initialTrack.title,
+                artist: initialTrack.artist,
+                coverUrl: initialTrack.coverUrl,
+                isPlaying: false,
+                currentTime: 0,
+                duration: initialTrack.duration,
+                accentHex: initialTrack.palette.line,
+                isLiked: isLiked(initialTrack),
+                queue: upNext,
+                lyrics: [],
+                isLyricsTab: false,
+                updatedAt: Date()
+            )
+            AmyMusicSharedStore.shared.saveSnapshot(initialSnapshot)
+
+            if let coverStr = initialTrack.coverUrl,
+               let url = URL(string: coverStr) {
+                Task {
+                    if let img = await ImageCacheManager.shared.load(url: url),
+                       let comp = img.jpegData(compressionQuality: 0.75) {
+                        AmyMusicSharedStore.shared.saveCoverImageData(comp)
+                        #if canImport(WidgetKit)
+                        WidgetCenter.shared.reloadAllTimelines()
+                        #endif
+                    }
+                }
+            }
+
+            #if canImport(WidgetKit)
+            WidgetCenter.shared.reloadAllTimelines()
+            #endif
+        }
     }
 
     public func refreshAllCachedAndDownloadedTracks() async {
