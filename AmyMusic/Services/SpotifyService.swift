@@ -918,7 +918,11 @@ public actor SpotifyService {
 
         guard var best = matched else { return nil }
 
-        // Retain Spotify high-res album cover & palette
+        // Retain clean official Spotify metadata (artists, title)
+        best.title = spotifyTrack.title
+        best.rawTitle = spotifyTrack.rawTitle
+        best.artist = spotifyTrack.artist
+        best.artists = spotifyTrack.artists
         if let cover = spotifyTrack.coverUrl, !cover.isEmpty {
             best.coverUrl = cover
         }

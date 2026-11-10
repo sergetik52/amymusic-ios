@@ -368,7 +368,11 @@ public actor YandexMusicService {
 
         guard var best = matched else { return nil }
 
-        // Retain high-res Yandex artwork & palette
+        // Retain clean official Yandex metadata (artists, title, chart info)
+        best.title = yandexTrack.title
+        best.rawTitle = yandexTrack.rawTitle
+        best.artist = yandexTrack.artist
+        best.artists = yandexTrack.artists
         if let cover = yandexTrack.coverUrl, !cover.isEmpty {
             best.coverUrl = cover
         }

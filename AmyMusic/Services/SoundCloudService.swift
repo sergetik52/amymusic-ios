@@ -1099,11 +1099,15 @@ public actor SoundCloudService {
     ) -> (cleanTitle: String, rawTitle: String, artistDisplay: String, artists: [ArtistRef]) {
         var cleaned = rawTitle
         let junkPatterns = [
-            "\\[Official[^\\]]*\\]", "\\(Official[^\\)]*\\)",
-            "\\[Music Video\\]", "\\(Music Video\\)",
-            "\\[Lyrics?\\]", "\\(Lyrics?\\)",
-            "\\[HD\\]", "\\[HQ\\]",
-            "\\[Audio\\]", "\\(Audio\\)"
+            #"(?i)\[(?:leak|unreleased|snippet|bass boosted|slowed|speed up|reverb|official|hq|hd|audio|video|clip|mv|visualizer|remix)[^\]]*\]"#,
+            #"(?i)\((?:leak|unreleased|snippet|bass boosted|slowed|speed up|reverb|official|hq|hd|audio|video|clip|mv|visualizer|remix)[^\)]*\)"#,
+            #"(?i)\[prod\.?[^\]]*\]"#,
+            #"(?i)\((?:prod\.?[^\)]*|produced by[^\)]*)\)"#,
+            #"\[Official[^\\]]*\]"#, #"\\[Official[^\\)]*\\)"#,
+            #"\[Music Video\]"#, #"\\[Music Video\\)"#,
+            #"\[Lyrics?\]"#, #"\\[Lyrics?\\)"#,
+            #"\[HD\]"#, #"\[HQ\]"#,
+            #"\[Audio\]"#, #"\\[Audio\\)"#
         ]
         for pattern in junkPatterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
@@ -1116,23 +1120,22 @@ public actor SoundCloudService {
         var artistPart = (cleanExplicit != nil && !cleanExplicit!.isEmpty) ? cleanExplicit! : fallbackArtist
         var titlePart = cleaned
 
-        // Robust artist & title splitter for dash / separator formats (hyphen, en-dash, em-dash, horizontal bar, tilde, colon, pipe)
-        let dashRegex = try? NSRegularExpression(
-            pattern: #"^(.+?)(?:\s+[-–—―~:|]\s*|\s*[-–—―~:|]\s+)(.+)$"#,
-            options: .caseInsensitive
-        )
-        if let match = dashRegex?.firstMatch(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)) {
-            if let r1 = Range(match.range(at: 1), in: cleaned),
-               let r2 = Range(match.range(at: 2), in: cleaned) {
-                let left = String(cleaned[r1]).trimmingCharacters(in: .whitespacesAndNewlines)
-                let right = String(cleaned[r2]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !left.isEmpty && !right.isEmpty {
-                    // Only override artistPart if explicit artist was NOT given by SoundCloud API
-                    if cleanExplicit == nil || cleanExplicit!.isEmpty {
-                        artistPart = left
-                    }
-                    titlePart = right
+        // Robust artist & title splitter for separator formats (hyphen, en-dash, em-dash, horizontal bar, minus, tilde, colon, pipe, bullet)
+        let sepPattern = #"^(.+?)(?:\s+[-−]+\s*|\s*[-−]+\s+|\s*[–—―~:|•]\s*)(.+)$"#
+        if let dashRegex = try? NSRegularExpression(pattern: sepPattern, options: .caseInsensitive),
+           let match = dashRegex.firstMatch(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)),
+           let r1 = Range(match.range(at: 1), in: cleaned),
+           let r2 = Range(match.range(at: 2), in: cleaned) {
+            let left = String(cleaned[r1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let right = String(cleaned[r2]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !left.isEmpty && !right.isEmpty {
+                // If title contains an explicit separator:
+                // Prefer left if it contains multiple artists, or if explicitArtist was absent or just the uploader
+                let hasSeparatorsInLeft = left.contains("&") || left.contains(",") || left.lowercased().contains("feat") || left.lowercased().contains("ft") || left.contains(" x ") || left.contains(" X ") || left.contains(" + ") || left.contains(" / ")
+                if cleanExplicit == nil || cleanExplicit!.isEmpty || cleanExplicit!.caseInsensitiveCompare(fallbackArtist) == .orderedSame || hasSeparatorsInLeft {
+                    artistPart = left
                 }
+                titlePart = right
             }
         }
 
@@ -1142,21 +1145,22 @@ public actor SoundCloudService {
             #"(?i)[\(\[]\s*(?:feat\.?|ft\.?|with)\s+([^\]\)]+)[\)\]]"#,
             #"(?i)\s+(?:feat\.?|ft\.?)\s+(.+)$"#
         ]
+        let artistSplitPattern = #"(?:\s*(?:,|&|\band\b|×|\bfeat\.?|\bft\.?|\bwith\b|;)\s*|\s+(?:[xX]|\/|\+)\s+)"#
+        let splitRegex = try? NSRegularExpression(pattern: artistSplitPattern, options: .caseInsensitive)
 
         for pattern in featTitlePatterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-               let match = regex.firstMatch(in: titlePart, range: NSRange(titlePart.startIndex..., in: titlePart)) {
-                if let r = Range(match.range(at: 1), in: titlePart) {
-                    let extracted = String(titlePart[r])
-                    let rawFeats = extracted
-                        .replacingOccurrences(of: " & ", with: ",")
-                        .replacingOccurrences(of: " and ", with: ",", options: .caseInsensitive)
-                        .replacingOccurrences(of: " feat. ", with: ",", options: .caseInsensitive)
-                        .replacingOccurrences(of: " ft. ", with: ",", options: .caseInsensitive)
-                        .components(separatedBy: CharacterSet(charactersIn: ",&×;"))
+               let match = regex.firstMatch(in: titlePart, range: NSRange(titlePart.startIndex..., in: titlePart)),
+               let r = Range(match.range(at: 1), in: titlePart) {
+                let extracted = String(titlePart[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if let splitRegex {
+                    let replaced = splitRegex.stringByReplacingMatches(in: extracted, range: NSRange(extracted.startIndex..., in: extracted), withTemplate: "___")
+                    let parts = replaced.components(separatedBy: "___")
                         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                         .filter { !$0.isEmpty }
-                    featArtistNames.append(contentsOf: rawFeats)
+                    featArtistNames.append(contentsOf: parts)
+                } else {
+                    featArtistNames.append(extracted)
                 }
                 // Strip the feat tag from title
                 titlePart = regex.stringByReplacingMatches(in: titlePart, range: NSRange(titlePart.startIndex..., in: titlePart), withTemplate: "")
@@ -1165,15 +1169,16 @@ public actor SoundCloudService {
         titlePart = titlePart.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Parse individual artists from artistPart (split by &, and, x, X, ×, feat., ft., with, comma, +, /)
-        let artistSplitRegex = try? NSRegularExpression(
-            pattern: #"(?:\s*(?:,|&|\band\b|×|\bfeat\.?\b|\bft\.?\b|\bwith\b|;)\s*|\s+(?:[xX]|\/|\+)\s+)"#,
-            options: .caseInsensitive
+        var safeArtistPart = artistPart.replacingOccurrences(
+            of: "(?i)Tyler,\\s*The Creator",
+            with: "Tyler__THE__CREATOR",
+            options: .regularExpression
         )
         var rawArtistNames: [String] = []
-        if let splitRegex = artistSplitRegex {
-            let replaced = splitRegex.stringByReplacingMatches(in: artistPart, range: NSRange(artistPart.startIndex..., in: artistPart), withTemplate: "___")
+        if let splitRegex {
+            let replaced = splitRegex.stringByReplacingMatches(in: safeArtistPart, range: NSRange(safeArtistPart.startIndex..., in: safeArtistPart), withTemplate: "___")
             rawArtistNames = replaced.components(separatedBy: "___")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .map { $0.replacingOccurrences(of: "Tyler__THE__CREATOR", with: "Tyler, The Creator").trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         } else {
             rawArtistNames = [artistPart]
@@ -1181,31 +1186,39 @@ public actor SoundCloudService {
 
         var allNames: [String] = []
         for name in rawArtistNames + featArtistNames {
-            if !allNames.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
-                allNames.append(name)
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty && !allNames.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+                allNames.append(trimmed)
             }
         }
 
         if allNames.isEmpty {
-            allNames = [artistPart]
+            allNames = [artistPart.isEmpty ? fallbackArtist : artistPart]
         }
 
-        let artists: [ArtistRef] = allNames.map { name in
-            // Route to uploader's SoundCloud user profile ID
-            let aId = (primaryArtistId != nil && !primaryArtistId!.isEmpty) ? primaryArtistId! : name
-            let avatar = primaryAvatar
+        let artists: [ArtistRef] = allNames.enumerated().map { index, name in
+            let matchesUploader = name.caseInsensitiveCompare(fallbackArtist) == .orderedSame
+            // Unique ID per artist ensures SwiftUI ForEach diffing renders every artist without dropping views
+            let uniqueId = "\(name.lowercased().replacingOccurrences(of: " ", with: "_"))_\(index)"
+            // Attach uploader avatar ONLY for the artist that matches the uploader
+            let avatar = matchesUploader ? primaryAvatar : nil
             return ArtistRef(
-                id: aId,
+                id: uniqueId,
                 name: name,
                 avatarUrl: avatar
             )
         }
 
         let display = artists.map(\.name).joined(separator: ", ")
-        return (titlePart.isEmpty ? cleaned : titlePart, cleaned, display, artists)
+        let cleanTitle = titlePart.isEmpty ? cleaned : titlePart
+        return (cleanTitle, cleaned, display, artists)
     }
 
     public static func renormalizeTrackIfNeeded(_ track: Track) -> Track {
+        // Yandex and Spotify tracks already have clean official artists and titles
+        guard track.source == .soundcloud else {
+            return track
+        }
         var tr = track
         let raw = tr.rawTitle ?? tr.title
         let cleaned = Self.parseCleanTrackInfo(
@@ -1213,7 +1226,7 @@ public actor SoundCloudService {
             fallbackArtist: tr.uploaderName ?? tr.artist,
             explicitArtist: (tr.artist != (tr.uploaderName ?? "")) ? tr.artist : nil,
             primaryArtistId: tr.uploaderId ?? tr.artists.first?.id,
-            primaryAvatar: tr.artists.first?.avatarUrl
+            primaryAvatar: tr.artists.first(where: { $0.name.caseInsensitiveCompare(tr.uploaderName ?? "") == .orderedSame })?.avatarUrl
         )
         tr.title = cleaned.cleanTitle
         tr.rawTitle = cleaned.rawTitle

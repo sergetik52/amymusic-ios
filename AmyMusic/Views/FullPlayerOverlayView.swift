@@ -287,9 +287,19 @@ public struct FullPlayerOverlayView: View {
                                     .lineLimit(1)
                                     .truncationMode(.tail)
 
+                                let artistsList: [ArtistRef] = {
+                                    if let arr = track?.artists, !arr.isEmpty {
+                                        return arr
+                                    }
+                                    if let single = track?.artist, !single.isEmpty {
+                                        return [ArtistRef(name: single)]
+                                    }
+                                    return []
+                                }()
+
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 8) {
-                                        ForEach(track?.artists ?? []) { artistRef in
+                                        ForEach(artistsList) { artistRef in
                                             Button {
                                                 let targetArtistId = track?.uploaderId ?? artistRef.id
                                                 onOpenArtist(targetArtistId)
