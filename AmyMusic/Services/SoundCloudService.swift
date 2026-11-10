@@ -936,7 +936,27 @@ public actor SoundCloudService {
         let artistId = userDict?["id"].map { "\($0)" }
         let userAvatar = upgradeArtworkUrl(userDict?["avatar_url"] as? String)
 
-        let cleaned = Self.parseCleanTrackInfo(rawTitle: rawTitle, fallbackArtist: fallbackArtist, primaryArtistId: artistId, primaryAvatar: userAvatar)
+        let publisherMeta = raw["publisher_metadata"] as? [String: Any]
+        let publisherArtist = (publisherMeta?["artist"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let publisherAlbumArtist = (publisherMeta?["album_artist"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let topArtist = (raw["artist"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let topAuthor = (raw["author"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let explicitApiArtist: String? = {
+            if let a = publisherArtist, !a.isEmpty { return a }
+            if let a = publisherAlbumArtist, !a.isEmpty { return a }
+            if let a = topArtist, !a.isEmpty { return a }
+            if let a = topAuthor, !a.isEmpty { return a }
+            return nil
+        }()
+
+        let cleaned = Self.parseCleanTrackInfo(
+            rawTitle: rawTitle,
+            fallbackArtist: fallbackArtist,
+            explicitArtist: explicitApiArtist,
+            primaryArtistId: artistId,
+            primaryAvatar: userAvatar
+        )
 
         let fullDurationMs = (raw["full_duration"] as? Double) ?? (raw["duration"] as? Double) ?? 0
         let durationMs = (raw["duration"] as? Double) ?? fullDurationMs
@@ -983,7 +1003,6 @@ public actor SoundCloudService {
         let protocolStr = ((chosenTranscoding?["format"] as? [String: Any])?["protocol"] as? String) ?? ""
         let isHls = protocolStr.contains("hls")
 
-        let publisherMeta = raw["publisher_metadata"] as? [String: Any]
         let explicit = (publisherMeta?["explicit"] as? Bool) ?? false
 
         return Track(
@@ -1052,6 +1071,7 @@ public actor SoundCloudService {
     public static func parseCleanTrackInfo(
         rawTitle: String,
         fallbackArtist: String,
+        explicitArtist: String? = nil,
         primaryArtistId: String?,
         primaryAvatar: String?
     ) -> (cleanTitle: String, rawTitle: String, artistDisplay: String, artists: [ArtistRef]) {
@@ -1070,7 +1090,8 @@ public actor SoundCloudService {
         }
         cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        var artistPart = fallbackArtist
+        let cleanExplicit = explicitArtist?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var artistPart = (cleanExplicit != nil && !cleanExplicit!.isEmpty) ? cleanExplicit! : fallbackArtist
         var titlePart = cleaned
 
         // Robust artist & title splitter for dash / separator formats (hyphen, en-dash, em-dash, horizontal bar, tilde, colon, pipe)
@@ -1084,7 +1105,10 @@ public actor SoundCloudService {
                 let left = String(cleaned[r1]).trimmingCharacters(in: .whitespacesAndNewlines)
                 let right = String(cleaned[r2]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !left.isEmpty && !right.isEmpty {
-                    artistPart = left
+                    // Only override artistPart if explicit artist was NOT given by SoundCloud API
+                    if cleanExplicit == nil || cleanExplicit!.isEmpty {
+                        artistPart = left
+                    }
                     titlePart = right
                 }
             }
@@ -1141,13 +1165,13 @@ public actor SoundCloudService {
         }
 
         if allNames.isEmpty {
-            allNames = [fallbackArtist]
+            allNames = [artistPart]
         }
 
         let artists: [ArtistRef] = allNames.map { name in
-            let matchesUploader = name.caseInsensitiveCompare(fallbackArtist) == .orderedSame
-            let aId = (matchesUploader && primaryArtistId != nil && !primaryArtistId!.isEmpty) ? primaryArtistId! : name
-            let avatar = matchesUploader ? primaryAvatar : nil
+            // Route to uploader's SoundCloud user profile ID
+            let aId = (primaryArtistId != nil && !primaryArtistId!.isEmpty) ? primaryArtistId! : name
+            let avatar = primaryAvatar
             return ArtistRef(
                 id: aId,
                 name: name,
@@ -1164,8 +1188,9 @@ public actor SoundCloudService {
         let raw = tr.rawTitle ?? tr.title
         let cleaned = Self.parseCleanTrackInfo(
             rawTitle: raw,
-            fallbackArtist: tr.artist,
-            primaryArtistId: tr.artists.first?.id,
+            fallbackArtist: tr.uploaderName ?? tr.artist,
+            explicitArtist: (tr.artist != (tr.uploaderName ?? "")) ? tr.artist : nil,
+            primaryArtistId: tr.uploaderId ?? tr.artists.first?.id,
             primaryAvatar: tr.artists.first?.avatarUrl
         )
         tr.title = cleaned.cleanTitle

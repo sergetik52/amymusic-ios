@@ -496,7 +496,8 @@ public struct TrackNativeContextMenuItems: View {
         if !track.artists.isEmpty {
             if track.artists.count == 1, let firstArtist = track.artists.first {
                 Button {
-                    onOpenArtist(firstArtist.id)
+                    let targetId = track.uploaderId ?? firstArtist.id
+                    onOpenArtist(targetId)
                 } label: {
                     Label("Перейти к артисту (\(firstArtist.name))", systemImage: "person.crop.circle")
                 }
@@ -504,7 +505,8 @@ public struct TrackNativeContextMenuItems: View {
                 Menu {
                     ForEach(track.artists) { artist in
                         Button {
-                            onOpenArtist(artist.id)
+                            let targetId = track.uploaderId ?? artist.id
+                            onOpenArtist(targetId)
                         } label: {
                             Text(artist.name)
                         }
