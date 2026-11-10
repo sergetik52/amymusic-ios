@@ -24,7 +24,7 @@ public struct ToggleLikeIntent: AppIntent {
             true
         )
         AmyMusicSharedStore.shared.updateLikeOptimistically()
-        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }
@@ -47,7 +47,7 @@ public struct PlayPauseIntent: AppIntent {
             true
         )
         AmyMusicSharedStore.shared.updatePlayOptimistically()
-        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }
@@ -69,7 +69,7 @@ public struct NextTrackIntent: AppIntent {
             nil,
             true
         )
-        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }
@@ -91,7 +91,7 @@ public struct PreviousTrackIntent: AppIntent {
             nil,
             true
         )
-        WidgetCenter.shared.reloadTimelines(ofKind: "AmyMusicPlayerWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }

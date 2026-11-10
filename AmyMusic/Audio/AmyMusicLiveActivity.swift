@@ -193,16 +193,12 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
     private let tabAccount = "widgetTab"
     private let accessGroup = "M5LW4HM9AJ.com.amymusic.ios"
 
-    private init() {}
-
-    private var sharedDefaults: UserDefaults? {
-        UserDefaults(suiteName: "group.com.amymusic.ios")
+    private init() {
+        // Purge legacy isolated local group plist domain
+        UserDefaults.standard.removePersistentDomain(forName: "group.com.amymusic.ios")
     }
 
     public func getWidgetTab() -> String {
-        if let str = sharedDefaults?.string(forKey: tabAccount) {
-            return str
-        }
         if let data = loadKeychain(account: tabAccount),
            let str = String(data: data, encoding: .utf8) {
             return str
@@ -211,7 +207,6 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
     }
 
     public func setWidgetTab(_ tab: String) {
-        sharedDefaults?.set(tab, forKey: tabAccount)
         if let data = tab.data(using: .utf8) {
             saveKeychain(data: data, account: tabAccount)
         }
@@ -219,16 +214,11 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
 
     public func saveSnapshot(_ snapshot: AmyMusicWidgetSnapshot) {
         if let data = try? JSONEncoder().encode(snapshot) {
-            sharedDefaults?.set(data, forKey: stateAccount)
             saveKeychain(data: data, account: stateAccount)
         }
     }
 
     public func loadSnapshot() -> AmyMusicWidgetSnapshot? {
-        if let data = sharedDefaults?.data(forKey: stateAccount),
-           let snapshot = try? JSONDecoder().decode(AmyMusicWidgetSnapshot.self, from: data) {
-            return snapshot
-        }
         if let data = loadKeychain(account: stateAccount),
            let snapshot = try? JSONDecoder().decode(AmyMusicWidgetSnapshot.self, from: data) {
             return snapshot
@@ -237,14 +227,10 @@ public final class AmyMusicSharedStore: @unchecked Sendable {
     }
 
     public func saveCoverImageData(_ data: Data) {
-        sharedDefaults?.set(data, forKey: coverAccount)
         saveKeychain(data: data, account: coverAccount)
     }
 
     public func loadCoverImageData() -> Data? {
-        if let data = sharedDefaults?.data(forKey: coverAccount) {
-            return data
-        }
         return loadKeychain(account: coverAccount)
     }
 
